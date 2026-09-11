@@ -99,27 +99,47 @@ predictable insert command.
 
 ### 5.2 Edit a diagram
 
-The preferred interaction is **Edit Mermaid** associated with the selected
-diagram. Office.js currently permits context-menu extensions for text, but not
-for picture objects. Consequently, a custom command cannot reliably appear in
-the native right-click menu of a Mermaid picture.
+The preferred interaction is:
+
+1. The user right-clicks a Mermaid diagram.
+2. Word shows **Edit Mermaid** only for that diagram.
+3. The command identifies the wrapping content control and diagram UUID.
+4. Mermaid Office opens the editor with the stored source and settings.
+
+Office.js currently permits Word context-menu extensions for text
+(`ContextMenuText`), but it does not expose the context menu for picture
+objects. Consequently, this exact interaction cannot currently be implemented
+by a cross-platform web add-in.
 
 The supported initial interaction is:
 
 - select a Mermaid diagram;
-- choose **Edit Mermaid** from the Mermaid ribbon group, or from the add-in task
-  pane;
-- enable the command only when the selection resolves to a Mermaid Office
-  content control.
+- Word raises `DocumentSelectionChanged`;
+- the add-in resolves `selection.parentContentControlOrNullObject`;
+- the add-in validates that the content-control tag starts with the supported
+  `mermaid-office:` schema marker and extracts the UUID;
+- the add-in enables **Edit Mermaid** in the Mermaid ribbon group with
+  `Office.ribbon.requestUpdate`;
+- the user chooses **Edit Mermaid**, which opens the task pane with the stored
+  source and settings;
+- the task pane offers a larger focused editor dialog for the Drawing-like
+  experience.
 
 An image right-click command remains a future enhancement if Microsoft exposes
 that extension point. The product must not emulate a native context menu with
-fragile pointer overlays.
+fragile pointer overlays. When the extension point becomes available, it should
+reuse the same selection resolution and edit command rather than introduce a
+second editing path.
+
+On clients that do not support reliable dynamic ribbon updates, **Edit
+Mermaid** remains enabled. Invoking it with another selection shows a clear
+message and does not modify the document.
 
 ### 5.3 Editor dialog
 
-The editor opens with the Office Dialog API and visually follows Word's
-Drawing-style modal:
+The task pane first loads the selected diagram and provides a compact editing
+surface. A user can expand it into a focused editor opened with the Office
+Dialog API. The expanded editor visually follows Word's Drawing-style modal:
 
 - title: **Mermaid Diagram**;
 - primary action: **Save and Close**;
@@ -132,7 +152,7 @@ Drawing-style modal:
 - unsaved-change confirmation before discard or dialog close.
 
 The dialog does not directly manipulate the document. It exchanges structured
-messages with the parent add-in runtime:
+messages with the parent task pane:
 
 ```text
 Word document
@@ -381,12 +401,28 @@ The production manifest adds a Mermaid group to Word's built-in **Insert** tab:
 - **Mermaid** — insert the default flowchart.
 - **Edit Mermaid** — edit the selected Mermaid diagram.
 
+The task pane monitors `DocumentSelectionChanged`. It enables **Edit Mermaid**
+only when the nearest parent content control has a valid Mermaid Office tag and
+payload. Selection checks are debounced and guarded so rapid cursor movement
+does not queue overlapping `Word.run` operations.
+
 If dynamic command enablement is not consistent across target clients, **Edit
 Mermaid** remains available and displays a precise selection message when the
 current selection is not a Mermaid diagram.
 
-A task pane remains useful for diagnostics and as a compatibility fallback, but
-it is not the primary editing experience.
+The task pane is the command landing surface and compact editor. The dialog is
+the preferred full editing experience.
+
+### 12.1 Editor component choice
+
+The editor uses CodeMirror 6 rather than Monaco. Monaco provides a powerful IDE
+experience, but Mermaid has no first-party Monaco language service, and Monaco
+would materially increase download, parsing, and startup cost. CodeMirror
+provides the required syntax styling, diagnostics, keyboard behavior, and
+future completion extension points with a much smaller footprint.
+
+Monaco can be reconsidered only if later requirements depend on Monaco-specific
+capabilities that cannot reasonably be implemented with CodeMirror.
 
 ## 13. Autocompletion
 
@@ -406,6 +442,8 @@ require a language server or network service.
 ### Phase 1: platform spikes
 
 - Add the Insert ribbon command.
+- Add the selection-aware **Edit Mermaid** ribbon command and task-pane loading
+  flow.
 - Prove default SVG insertion on supported Windows and Mac clients.
 - Prove PNG insertion on Word web.
 - Verify content-control wrapping and selection detection.
@@ -489,4 +527,5 @@ The first production release is complete when:
 - [Office Dialog API](https://learn.microsoft.com/office/dev/add-ins/develop/dialog-api-in-office-add-ins)
 - [Image Coercion requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets)
 - [ContextMenu extension point](https://learn.microsoft.com/javascript/api/manifest/extensionpoint)
-
+- [Office ribbon API](https://learn.microsoft.com/javascript/api/office/office.ribbon)
+- [Word document selection changed event](https://learn.microsoft.com/javascript/api/office/office.documentselectionchangedeventargs)
