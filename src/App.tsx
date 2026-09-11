@@ -12,15 +12,17 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import { DiagramPreview } from './components/DiagramPreview'
 import { MermaidEditor } from './components/MermaidEditor'
+import { ThemePicker } from './components/ThemePicker'
 import { DEFAULT_DIAGRAM } from './defaultDiagram'
 import { renderMermaid } from './mermaid/render'
 import { openEditorDialog } from './dialog/openEditorDialog'
-import type { DiagramPayload } from './metadata/payload'
+import type { DiagramPayload, DiagramTheme } from './metadata/payload'
 import { insertDiagram, type DiagramFormat, updateDiagram } from './word/insertDiagram'
 import { watchSelectedDiagram } from './word/selection'
 
 function App() {
   const [source, setSource] = useState(DEFAULT_DIAGRAM)
+  const [theme, setTheme] = useState<DiagramTheme>('default')
   const [svg, setSvg] = useState('')
   const [renderError, setRenderError] = useState('')
   const [isRendering, setIsRendering] = useState(true)
@@ -39,6 +41,7 @@ function App() {
             setSelectedDiagram(payload)
             if (payload) {
               setSource(payload.source)
+              setTheme(payload.theme)
               setNotice('Selected Mermaid diagram loaded for editing.')
             }
           },
@@ -65,7 +68,7 @@ function App() {
     const timer = window.setTimeout(async () => {
       setIsRendering(true)
       try {
-        const rendered = await renderMermaid(source)
+        const rendered = await renderMermaid(source, theme)
         if (active) {
           setSvg(rendered)
           setRenderError('')
@@ -85,7 +88,7 @@ function App() {
       active = false
       window.clearTimeout(timer)
     }
-  }, [source])
+  }, [source, theme])
 
   const handleInsert = async () => {
     if (!svg || renderError) {
@@ -96,8 +99,8 @@ function App() {
     setNotice('')
     try {
       const format: DiagramFormat = selectedDiagram
-        ? await updateDiagram(svg, selectedDiagram, source)
-        : await insertDiagram(svg, source)
+        ? await updateDiagram(svg, selectedDiagram, source, theme)
+        : await insertDiagram(svg, source, theme)
       if (selectedDiagram) {
         setSelectedDiagram({ ...selectedDiagram, source, format })
       }
@@ -116,19 +119,25 @@ function App() {
   const handleOpenDialog = async () => {
     setNotice('')
     try {
-      const editedSource = await openEditorDialog(source)
-      if (editedSource === null) {
+      const result = await openEditorDialog(source, theme)
+      if (result === null) {
         return
       }
 
       setIsInserting(true)
-      const rendered = await renderMermaid(editedSource)
+      const rendered = await renderMermaid(result.source, result.theme)
       const format = selectedDiagram
-        ? await updateDiagram(rendered, selectedDiagram, editedSource)
-        : await insertDiagram(rendered, editedSource)
-      setSource(editedSource)
+        ? await updateDiagram(rendered, selectedDiagram, result.source, result.theme)
+        : await insertDiagram(rendered, result.source, result.theme)
+      setSource(result.source)
+      setTheme(result.theme)
       if (selectedDiagram) {
-        setSelectedDiagram({ ...selectedDiagram, source: editedSource, format })
+        setSelectedDiagram({
+          ...selectedDiagram,
+          source: result.source,
+          theme: result.theme,
+          format,
+        })
       }
       setNotice(
         selectedDiagram
@@ -153,6 +162,7 @@ function App() {
                 onClick={() => {
                   setSelectedDiagram(null)
                   setSource(DEFAULT_DIAGRAM)
+                  setTheme('default')
                   setNotice('Ready to insert a new diagram.')
                 }}
               >
@@ -199,7 +209,10 @@ function App() {
 
         <section className="workspace" aria-label="Mermaid diagram workspace">
           <div className="panel">
-            <Text weight="semibold">Diagram source</Text>
+            <div className="editor-heading">
+              <Text weight="semibold">Diagram source</Text>
+              <ThemePicker value={theme} onChange={setTheme} />
+            </div>
             <MermaidEditor
               value={source}
               onChange={setSource}

@@ -1,0 +1,29 @@
+.editor-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.theme-picker {
+  align-items: center;
+  display: flex;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.theme-picker select {
+  background: #fff;
+  border: 1px solid #b3b3b3;
+  border-radius: 4px;
+  color: #242424;
+  font: inherit;
+  min-width: 92px;
+  padding: 4px 26px 4px 8px;
+}
+
+.theme-picker select:focus {
+  border-color: #0f6cbd;
+  outline: 2px solid #0f6cbd;
+  outline-offset: -1px;
+}

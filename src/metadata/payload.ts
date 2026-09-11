@@ -4,7 +4,15 @@ export const CONTENT_CONTROL_TAG_PREFIX = `mermaid-office:v${DIAGRAM_SCHEMA_VERS
 export const DOCUMENT_SETTING_PREFIX = 'mermaid-office:diagram:'
 
 export type DiagramFormat = 'svg' | 'png'
-export type DiagramTheme = 'default' | 'neutral' | 'dark' | 'forest'
+export type DiagramTheme = 'default' | 'neutral' | 'dark' | 'forest' | 'redux'
+
+export const DIAGRAM_THEMES: DiagramTheme[] = [
+  'default',
+  'neutral',
+  'dark',
+  'forest',
+  'redux',
+]
 
 export interface DiagramPayload {
   schemaVersion: typeof DIAGRAM_SCHEMA_VERSION
@@ -79,7 +87,7 @@ function isDiagramPayload(value: unknown): value is DiagramPayload {
     payload.id.length > 0 &&
     typeof payload.source === 'string' &&
     payload.source.trim().length > 0 &&
-    ['default', 'neutral', 'dark', 'forest'].includes(String(payload.theme)) &&
+    DIAGRAM_THEMES.includes(payload.theme as DiagramTheme) &&
     ['svg', 'png'].includes(String(payload.format)) &&
     typeof payload.rendererVersion === 'string'
   )

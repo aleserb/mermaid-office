@@ -11,7 +11,9 @@ import {
 import { useEffect, useState } from 'react'
 import { DiagramPreview } from '../components/DiagramPreview'
 import { MermaidEditor } from '../components/MermaidEditor'
+import { ThemePicker } from '../components/ThemePicker'
 import { renderMermaid } from '../mermaid/render'
+import type { DiagramTheme } from '../metadata/payload'
 import { parseParentMessage, type DialogToParentMessage } from './messages'
 import './dialog.css'
 
@@ -21,6 +23,7 @@ function sendToParent(message: DialogToParentMessage) {
 
 export function DialogApp() {
   const [source, setSource] = useState('')
+  const [theme, setTheme] = useState<DiagramTheme>('default')
   const [svg, setSvg] = useState('')
   const [error, setError] = useState('')
   const [initialized, setInitialized] = useState(false)
@@ -33,6 +36,7 @@ export function DialogApp() {
         try {
           const message = parseParentMessage(args.message)
           setSource(message.source)
+          setTheme(message.theme)
           setInitialized(true)
         } catch (messageError) {
           setError(
@@ -61,7 +65,7 @@ export function DialogApp() {
     const timer = window.setTimeout(async () => {
       setRendering(true)
       try {
-        const rendered = await renderMermaid(source)
+        const rendered = await renderMermaid(source, theme)
         if (active) {
           setSvg(rendered)
           setError('')
@@ -83,7 +87,7 @@ export function DialogApp() {
       active = false
       window.clearTimeout(timer)
     }
-  }, [initialized, source])
+  }, [initialized, source, theme])
 
   return (
     <FluentProvider theme={webLightTheme}>
@@ -95,7 +99,7 @@ export function DialogApp() {
             <Button
               appearance="primary"
               disabled={!initialized || rendering || Boolean(error)}
-              onClick={() => sendToParent({ type: 'save', source })}
+              onClick={() => sendToParent({ type: 'save', source, theme })}
             >
               Save and Close
             </Button>
@@ -107,7 +111,10 @@ export function DialogApp() {
         ) : (
           <section className="dialog-workspace">
             <div className="dialog-panel">
-              <Text weight="semibold">Diagram source</Text>
+              <div className="editor-heading">
+                <Text weight="semibold">Diagram source</Text>
+                <ThemePicker value={theme} onChange={setTheme} />
+              </div>
               <MermaidEditor value={source} onChange={setSource} diagnostic={error} />
               {error && (
                 <MessageBar intent="error">

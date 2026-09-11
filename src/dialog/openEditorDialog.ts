@@ -1,6 +1,15 @@
 import { parseDialogMessage, type ParentToDialogMessage } from './messages'
+import type { DiagramTheme } from '../metadata/payload'
 
-export function openEditorDialog(source: string): Promise<string | null> {
+export interface EditorResult {
+  source: string
+  theme: DiagramTheme
+}
+
+export function openEditorDialog(
+  source: string,
+  theme: DiagramTheme,
+): Promise<EditorResult | null> {
   if (typeof Office === 'undefined' || !Office.context?.ui) {
     return Promise.reject(new Error('The expanded editor is available inside Microsoft Word.'))
   }
@@ -19,7 +28,7 @@ export function openEditorDialog(source: string): Promise<string | null> {
 
         const dialog = result.value
         let settled = false
-        const finish = (value: string | null) => {
+        const finish = (value: EditorResult | null) => {
           if (settled) {
             return
           }
@@ -45,10 +54,14 @@ export function openEditorDialog(source: string): Promise<string | null> {
             try {
               const message = parseDialogMessage(args.message)
               if (message.type === 'ready') {
-                const initialization: ParentToDialogMessage = { type: 'initialize', source }
+                const initialization: ParentToDialogMessage = {
+                  type: 'initialize',
+                  source,
+                  theme,
+                }
                 dialog.messageChild(JSON.stringify(initialization))
               } else if (message.type === 'save') {
-                finish(message.source)
+                finish({ source: message.source, theme: message.theme })
               } else {
                 finish(null)
               }
