@@ -38,6 +38,15 @@ export function getContentControlTag(id: string): string {
   return `${CONTENT_CONTROL_TAG_PREFIX}${id}`
 }
 
+export function getDiagramIdFromTag(tag: string): string | null {
+  if (!tag.startsWith(CONTENT_CONTROL_TAG_PREFIX)) {
+    return null
+  }
+
+  const id = tag.slice(CONTENT_CONTROL_TAG_PREFIX.length)
+  return id || null
+}
+
 export function getDocumentSettingKey(id: string): string {
   return `${DOCUMENT_SETTING_PREFIX}${id}`
 }

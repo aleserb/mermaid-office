@@ -3,6 +3,7 @@ import {
   CONTENT_CONTROL_TAG_PREFIX,
   createDiagramPayload,
   getContentControlTag,
+  getDiagramIdFromTag,
   parseDiagramPayload,
 } from './payload'
 
@@ -19,6 +20,8 @@ describe('diagram payload', () => {
       theme: 'default',
     })
     expect(getContentControlTag(payload.id)).toBe(`${CONTENT_CONTROL_TAG_PREFIX}diagram-id`)
+    expect(getDiagramIdFromTag(getContentControlTag(payload.id))).toBe('diagram-id')
+    expect(getDiagramIdFromTag('other:add-in')).toBeNull()
 
     vi.unstubAllGlobals()
   })

@@ -39,7 +39,11 @@ export async function svgToPngBase64(svg: string): Promise<string> {
   const scale = Math.min(2, 4096 / Math.max(sourceWidth, sourceHeight))
   const width = Math.max(1, Math.round(sourceWidth * scale))
   const height = Math.max(1, Math.round(sourceHeight * scale))
-  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
+  root.setAttribute('width', String(sourceWidth))
+  root.setAttribute('height', String(sourceHeight))
+  root.style.removeProperty('max-width')
+  const normalizedSvg = new XMLSerializer().serializeToString(root)
+  const url = URL.createObjectURL(new Blob([normalizedSvg], { type: 'image/svg+xml' }))
 
   try {
     const image = new Image()
@@ -54,7 +58,8 @@ export async function svgToPngBase64(svg: string): Promise<string> {
       throw new Error('This browser cannot create the PNG fallback.')
     }
 
-    context.drawImage(image, 0, 0, width, height)
+    context.scale(scale, scale)
+    context.drawImage(image, 0, 0, sourceWidth, sourceHeight)
     return canvas.toDataURL('image/png').split(',', 2)[1]
   } finally {
     URL.revokeObjectURL(url)

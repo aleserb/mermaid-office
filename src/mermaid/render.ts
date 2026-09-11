@@ -13,6 +13,16 @@ function initializeMermaid() {
     startOnLoad: false,
     securityLevel: 'strict',
     theme: 'default',
+    htmlLabels: false,
+    secure: [
+      'secure',
+      'securityLevel',
+      'startOnLoad',
+      'maxTextSize',
+      'suppressErrorRendering',
+      'maxEdges',
+      'htmlLabels',
+    ],
   })
   initialized = true
 }

@@ -32,6 +32,9 @@ insertion must be tested by sideloading `manifest.xml` in Microsoft Word.
 After manifest changes, remove and upload the manifest again because Word caches
 the sideloaded manifest separately from the hosted web application.
 
+When the task pane is open, selecting an inserted Mermaid diagram loads its
+stored source into the editor automatically.
+
 ## Checks
 
 ```bash

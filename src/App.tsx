@@ -14,6 +14,7 @@ import './App.css'
 import { MermaidEditor } from './components/MermaidEditor'
 import { renderMermaid } from './mermaid/render'
 import { insertDiagram, type DiagramFormat } from './word/insertDiagram'
+import { watchSelectedDiagram } from './word/selection'
 
 const initialDiagram = `flowchart TD
     Idea[Mermaid source] --> Render[Render as SVG]
@@ -27,6 +28,35 @@ function App() {
   const [isRendering, setIsRendering] = useState(true)
   const [isInserting, setIsInserting] = useState(false)
   const [notice, setNotice] = useState('')
+
+  useEffect(() => {
+    let stopWatching: () => void = () => undefined
+    let disposed = false
+
+    if (typeof Office !== 'undefined') {
+      void Office.onReady().then(() => {
+        const stop = watchSelectedDiagram(
+          (payload) => {
+            setSource(payload.source)
+            setNotice('Selected Mermaid diagram loaded for editing.')
+          },
+          (error) => {
+            setNotice(error.message)
+          },
+        )
+        if (disposed) {
+          stop()
+        } else {
+          stopWatching = stop
+        }
+      })
+    }
+
+    return () => {
+      disposed = true
+      stopWatching()
+    }
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -91,7 +121,13 @@ function App() {
         </header>
 
         {notice && (
-          <MessageBar intent={notice.startsWith('Diagram inserted') ? 'success' : 'error'}>
+          <MessageBar
+            intent={
+              notice.startsWith('Diagram inserted') || notice.startsWith('Selected Mermaid')
+                ? 'success'
+                : 'error'
+            }
+          >
             <MessageBarBody>{notice}</MessageBarBody>
           </MessageBar>
         )}
