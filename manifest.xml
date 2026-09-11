@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:type="TaskPaneApp">
+  <Id>9e2ab43d-705f-4f59-b861-a2b35eca6d41</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>aleserb</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="Mermaid Office"/>
+  <Description DefaultValue="Create and edit Mermaid diagrams in Microsoft Word."/>
+  <IconUrl DefaultValue="https://aleserb.github.io/mermaid-office/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://aleserb.github.io/mermaid-office/assets/icon-80.png"/>
+  <SupportUrl DefaultValue="https://github.com/aleserb/mermaid-office/issues"/>
+  <AppDomains>
+    <AppDomain>https://aleserb.github.io</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document"/>
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="ImageCoercion" MinVersion="1.1"/>
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://aleserb.github.io/mermaid-office/"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>
