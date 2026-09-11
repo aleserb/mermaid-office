@@ -213,6 +213,7 @@ Example payload:
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "source": "flowchart LR\n    A[Start] --> B[Finish]",
   "theme": "default",
+  "size": "medium",
   "format": "svg",
   "rendererVersion": "11.17.2"
 }

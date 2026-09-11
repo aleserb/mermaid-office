@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  getPreferredSize,
   getPreferredTheme,
-  setPreferredSize,
   setPreferredTheme,
 } from './diagramPreferences'
 
@@ -12,12 +10,10 @@ describe('diagram preferences', () => {
     vi.restoreAllMocks()
   })
 
-  it('persists valid theme and size values', () => {
+  it('persists valid theme values', () => {
     setPreferredTheme('redux-color')
-    setPreferredSize('large')
 
     expect(getPreferredTheme()).toBe('redux-color')
-    expect(getPreferredSize()).toBe('large')
   })
 
   it('uses safe defaults when storage is unavailable', () => {
@@ -27,6 +23,5 @@ describe('diagram preferences', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
 
     expect(getPreferredTheme()).toBe('default')
-    expect(getPreferredSize()).toBe('medium')
   })
 })

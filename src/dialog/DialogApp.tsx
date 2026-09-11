@@ -11,16 +11,13 @@ import {
 import { useEffect, useState } from 'react'
 import { DiagramPreview } from '../components/DiagramPreview'
 import { MermaidEditor } from '../components/MermaidEditor'
-import { SizePicker } from '../components/SizePicker'
 import { SplitWorkspace } from '../components/SplitWorkspace'
+import { SyntaxHelpLink } from '../components/SyntaxHelpLink'
 import { ThemePicker } from '../components/ThemePicker'
 import { normalizeMermaidError, type MermaidDiagnostic } from '../mermaid/diagnostics'
 import { renderMermaid } from '../mermaid/render'
 import type { DiagramSize, DiagramTheme } from '../metadata/payload'
-import {
-  setPreferredSize,
-  setPreferredTheme,
-} from '../preferences/diagramPreferences'
+import { setPreferredTheme } from '../preferences/diagramPreferences'
 import { parseParentMessage, type DialogToParentMessage } from './messages'
 import './dialog.css'
 
@@ -127,13 +124,7 @@ export function DialogApp() {
                         setPreferredTheme(value)
                       }}
                     />
-                    <SizePicker
-                      value={size}
-                      onChange={(value) => {
-                        setSize(value)
-                        setPreferredSize(value)
-                      }}
-                    />
+                    <SyntaxHelpLink />
                   </div>
               </div>
                 <MermaidEditor

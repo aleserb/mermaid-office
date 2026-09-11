@@ -12,22 +12,16 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import { DiagramPreview } from './components/DiagramPreview'
 import { MermaidEditor } from './components/MermaidEditor'
-import { SizePicker } from './components/SizePicker'
 import { SplitWorkspace } from './components/SplitWorkspace'
+import { SyntaxHelpLink } from './components/SyntaxHelpLink'
 import { ThemePicker } from './components/ThemePicker'
 import { DEFAULT_DIAGRAM } from './defaultDiagram'
 import { normalizeMermaidError, type MermaidDiagnostic } from './mermaid/diagnostics'
 import { renderMermaid } from './mermaid/render'
 import { openEditorDialog } from './dialog/openEditorDialog'
-import type {
-  DiagramPayload,
-  DiagramSize,
-  DiagramTheme,
-} from './metadata/payload'
+import type { DiagramPayload, DiagramSize, DiagramTheme } from './metadata/payload'
 import {
-  getPreferredSize,
   getPreferredTheme,
-  setPreferredSize,
   setPreferredTheme,
 } from './preferences/diagramPreferences'
 import { insertDiagram, type DiagramFormat, updateDiagram } from './word/insertDiagram'
@@ -36,7 +30,7 @@ import { watchSelectedDiagram } from './word/selection'
 function App() {
   const [source, setSource] = useState(DEFAULT_DIAGRAM)
   const [theme, setTheme] = useState<DiagramTheme>(getPreferredTheme)
-  const [size, setSize] = useState<DiagramSize>(getPreferredSize)
+  const [size, setSize] = useState<DiagramSize>('medium')
   const [svg, setSvg] = useState('')
   const [renderError, setRenderError] = useState<MermaidDiagnostic | null>(null)
   const [isRendering, setIsRendering] = useState(true)
@@ -162,7 +156,6 @@ function App() {
       setTheme(result.theme)
       setSize(result.size)
       setPreferredTheme(result.theme)
-      setPreferredSize(result.size)
       if (selectedDiagram) {
         setSelectedDiagram({
           ...selectedDiagram,
@@ -196,7 +189,7 @@ function App() {
                   setSelectedDiagram(null)
                   setSource(DEFAULT_DIAGRAM)
                   setTheme(getPreferredTheme())
-                  setSize(getPreferredSize())
+                  setSize('medium')
                   setNotice('Ready to insert a new diagram.')
                 }}
               >
@@ -256,13 +249,7 @@ function App() {
                       setPreferredTheme(value)
                     }}
                   />
-                  <SizePicker
-                    value={size}
-                    onChange={(value) => {
-                      setSize(value)
-                      setPreferredSize(value)
-                    }}
-                  />
+                  <SyntaxHelpLink />
                 </div>
               </div>
               <MermaidEditor

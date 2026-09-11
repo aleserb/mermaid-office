@@ -4,18 +4,15 @@ import { renderMermaid } from './mermaid/render'
 import { insertDiagram, updateDiagram } from './word/insertDiagram'
 import { getSelectedDiagram } from './word/selection'
 import {
-  getPreferredSize,
   getPreferredTheme,
-  setPreferredSize,
   setPreferredTheme,
 } from './preferences/diagramPreferences'
 
 async function insertDefaultDiagram(event: Office.AddinCommands.Event) {
   try {
     const theme = getPreferredTheme()
-    const size = getPreferredSize()
     const svg = await renderMermaid(DEFAULT_DIAGRAM, theme)
-    await insertDiagram(svg, DEFAULT_DIAGRAM, theme, size)
+    await insertDiagram(svg, DEFAULT_DIAGRAM, theme)
   } catch (error) {
     console.error('Unable to insert the default Mermaid diagram.', error)
   } finally {
@@ -29,7 +26,7 @@ async function openEditor(event: Office.AddinCommands.Event) {
     const result = await openEditorDialog(
       selectedDiagram?.source ?? DEFAULT_DIAGRAM,
       selectedDiagram?.theme ?? getPreferredTheme(),
-      selectedDiagram?.size ?? getPreferredSize(),
+      selectedDiagram?.size ?? 'medium',
     )
     if (result === null) {
       return
@@ -37,7 +34,6 @@ async function openEditor(event: Office.AddinCommands.Event) {
 
     const svg = await renderMermaid(result.source, result.theme)
     setPreferredTheme(result.theme)
-    setPreferredSize(result.size)
     if (selectedDiagram) {
       await updateDiagram(
         svg,

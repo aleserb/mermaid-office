@@ -1,12 +1,9 @@
 import {
-  DIAGRAM_SIZES,
   DIAGRAM_THEMES,
-  type DiagramSize,
   type DiagramTheme,
 } from '../metadata/payload'
 
 const THEME_KEY = 'mermaid-office:preferred-theme'
-const SIZE_KEY = 'mermaid-office:preferred-size'
 
 function readPreference<T extends string>(
   key: string,
@@ -39,12 +36,4 @@ export function getPreferredTheme(): DiagramTheme {
 
 export function setPreferredTheme(theme: DiagramTheme): void {
   writePreference(THEME_KEY, theme)
-}
-
-export function getPreferredSize(): DiagramSize {
-  return readPreference(SIZE_KEY, DIAGRAM_SIZES, 'medium')
-}
-
-export function setPreferredSize(size: DiagramSize): void {
-  writePreference(SIZE_KEY, size)
 }

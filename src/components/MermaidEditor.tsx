@@ -8,17 +8,12 @@ import {
   defaultKeymap,
   history,
   historyKeymap,
-  indentLess,
-  indentMore,
   indentWithTab,
-  redo,
-  undo,
 } from '@codemirror/commands'
 import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers } from '@codemirror/view'
 import { lintGutter, setDiagnostics } from '@codemirror/lint'
-import { openSearchPanel, search, searchKeymap } from '@codemirror/search'
-import { Button } from '@fluentui/react-components'
+import { search, searchKeymap } from '@codemirror/search'
 import { useEffect, useRef } from 'react'
 import type { MermaidDiagnostic } from '../mermaid/diagnostics'
 import { createMermaidDiagnostic } from './editorDiagnostics'
@@ -130,45 +125,8 @@ export function MermaidEditor({
     editor.dispatch(setDiagnostics(editor.state, nextDiagnostic ? [nextDiagnostic] : []))
   }, [diagnostic, value])
 
-  const run = (command: (view: EditorView) => boolean) => {
-    const editor = editorRef.current
-    if (editor) {
-      command(editor)
-      editor.focus()
-    }
-  }
-
   return (
     <div className="editor-shell">
-      <div className="editor-toolbar" aria-label="Editor tools">
-        <Button size="small" appearance="subtle" onClick={() => run(undo)}>
-          Undo
-        </Button>
-        <Button size="small" appearance="subtle" onClick={() => run(redo)}>
-          Redo
-        </Button>
-        <Button
-          size="small"
-          appearance="subtle"
-          onClick={() => run(openSearchPanel)}
-        >
-          Find
-        </Button>
-        <Button size="small" appearance="subtle" onClick={() => run(indentMore)}>
-          Indent
-        </Button>
-        <Button size="small" appearance="subtle" onClick={() => run(indentLess)}>
-          Outdent
-        </Button>
-        <a
-          className="syntax-help"
-          href="https://mermaid.js.org/intro/syntax-reference.html"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Mermaid syntax
-        </a>
-      </div>
       <div className="editor" ref={hostRef} />
     </div>
   )
