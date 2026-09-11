@@ -40,3 +40,7 @@ npm run build
 Run `npm run deploy` to build the application and publish `dist` to the
 `gh-pages` branch. Configure the repository's Pages source as the root of that
 branch before the first deployment.
+
+GitHub Pages for a private repository requires a GitHub plan that supports
+private Pages sites. Otherwise, make the repository public or upgrade the
+account before enabling Pages.
