@@ -1,0 +1,66 @@
+@import "../index.css";
+
+.dialog-shell {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100vh;
+  padding: 20px;
+}
+
+.dialog-header {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.dialog-header h1 {
+  margin: 0;
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.dialog-workspace {
+  display: grid;
+  flex: 1;
+  gap: 16px;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+  min-height: 0;
+}
+
+.dialog-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.dialog-preview {
+  align-items: center;
+  background: #fafafa;
+  border: 1px solid #d1d1d1;
+  border-radius: 6px;
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-height: 420px;
+  overflow: auto;
+  padding: 20px;
+}
+
+@media (max-width: 720px) {
+  .dialog-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dialog-workspace {
+    grid-template-columns: 1fr;
+  }
+}

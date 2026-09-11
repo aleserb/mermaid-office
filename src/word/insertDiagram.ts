@@ -11,6 +11,12 @@ import { embedPayloadInSvg } from '../metadata/svgMetadata'
 
 export type { DiagramFormat } from '../metadata/payload'
 
+interface RasterizedDiagram {
+  base64: string
+  width: number
+  height: number
+}
+
 export function isSvgInsertionSupported(): boolean {
   return (
     typeof Office !== 'undefined' &&
@@ -30,7 +36,7 @@ function setSelectedData(data: string, coercionType: Office.CoercionType): Promi
   })
 }
 
-export async function svgToPngBase64(svg: string): Promise<string> {
+export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
   const svgDocument = new DOMParser().parseFromString(svg, 'image/svg+xml')
   const root = svgDocument.documentElement
   const viewBox = root.getAttribute('viewBox')?.split(/\s+/).map(Number)
@@ -60,10 +66,18 @@ export async function svgToPngBase64(svg: string): Promise<string> {
 
     context.scale(scale, scale)
     context.drawImage(image, 0, 0, sourceWidth, sourceHeight)
-    return canvas.toDataURL('image/png').split(',', 2)[1]
+    return {
+      base64: canvas.toDataURL('image/png').split(',', 2)[1],
+      width: sourceWidth,
+      height: sourceHeight,
+    }
   } finally {
     URL.revokeObjectURL(url)
   }
+}
+
+export async function svgToPngBase64(svg: string): Promise<string> {
+  return (await rasterizeSvg(svg)).base64
 }
 
 function configureDiagramContentControl(
@@ -83,17 +97,108 @@ function configureDiagramContentControl(
   return contentControl
 }
 
-async function insertPngObject(base64Png: string, payload: DiagramPayload): Promise<void> {
+async function insertPngObject(
+  raster: RasterizedDiagram,
+  payload: DiagramPayload,
+): Promise<void> {
   await Word.run(async (context) => {
     const selection = context.document.getSelection()
     const picture = selection.insertInlinePictureFromBase64(
-      base64Png,
+      raster.base64,
       Word.InsertLocation.replace,
     )
+    const dimensions = fitDiagram(raster.width, raster.height)
+    picture.width = dimensions.width
+    picture.height = dimensions.height
     configureDiagramContentControl(picture, payload)
     context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
     await context.sync()
   })
+}
+
+export async function updateDiagram(
+  svg: string,
+  existing: DiagramPayload,
+  source: string,
+  theme: DiagramTheme = existing.theme,
+): Promise<DiagramFormat> {
+  if (typeof Word === 'undefined') {
+    throw new Error('Open Mermaid Office inside Microsoft Word to update a diagram.')
+  }
+
+  const payload: DiagramPayload = {
+    ...existing,
+    source,
+    theme,
+    format: 'png',
+  }
+  const raster = await rasterizeSvg(svg)
+  const png = embedPayloadInPng(raster.base64, payload)
+
+  await Word.run(async (context) => {
+    const selection = context.document.getSelection()
+    const directParent = selection.parentContentControlOrNullObject
+    const selectedPicture = selection.inlinePictures.getFirstOrNullObject()
+    directParent.load('tag')
+    await context.sync()
+
+    let contentControl = directParent
+    if (directParent.isNullObject) {
+      if (selectedPicture.isNullObject) {
+        throw new Error('Select the Mermaid diagram you want to update.')
+      }
+      contentControl = selectedPicture.parentContentControlOrNullObject
+      contentControl.load('tag')
+      await context.sync()
+    }
+
+    if (
+      contentControl.isNullObject ||
+      contentControl.tag !== getContentControlTag(existing.id)
+    ) {
+      throw new Error('Select the same Mermaid diagram before updating it.')
+    }
+
+    const existingPicture = contentControl.inlinePictures.getFirstOrNullObject()
+    existingPicture.load('width,altTextTitle,altTextDescription')
+    await context.sync()
+
+    if (existingPicture.isNullObject) {
+      throw new Error('The selected Mermaid diagram no longer contains a picture.')
+    }
+
+    const replacement = contentControl.insertInlinePictureFromBase64(
+      png,
+      Word.InsertLocation.replace,
+    )
+    const aspectRatio = raster.height / raster.width
+    replacement.width = existingPicture.width
+    replacement.height = existingPicture.width * aspectRatio
+    replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
+    replacement.altTextDescription =
+      existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
+    context.document.settings.add(
+      getDocumentSettingKey(payload.id),
+      JSON.stringify(payload),
+    )
+    contentControl.select()
+    await context.sync()
+  })
+
+  return 'png'
+}
+
+export function fitDiagram(
+  width: number,
+  height: number,
+  maxWidth = 500,
+  maxHeight = 650,
+): { width: number; height: number } {
+  const scale = Math.min(1, maxWidth / width, maxHeight / height)
+  return {
+    width: width * scale,
+    height: height * scale,
+  }
 }
 
 async function wrapSelectedSvgObject(payload: DiagramPayload): Promise<void> {
@@ -146,7 +251,8 @@ export async function insertDiagram(
   }
 
   const payload = createDiagramPayload(source, 'png', theme)
-  const png = embedPayloadInPng(await svgToPngBase64(svg), payload)
-  await insertPngObject(png, payload)
+  const raster = await rasterizeSvg(svg)
+  const png = embedPayloadInPng(raster.base64, payload)
+  await insertPngObject({ ...raster, base64: png }, payload)
   return 'png'
 }

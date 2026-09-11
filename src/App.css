@@ -22,6 +22,11 @@
   margin: 0 0 4px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .workspace {
   display: grid;
   flex: 1;
@@ -82,6 +87,10 @@
 @media (max-width: 720px) {
   .app-header {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header-actions {
     flex-direction: column;
   }
 

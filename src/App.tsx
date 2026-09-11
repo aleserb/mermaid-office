@@ -9,11 +9,14 @@ import {
   webLightTheme,
 } from '@fluentui/react-components'
 import { AddSquareRegular } from '@fluentui/react-icons'
+import { OpenRegular } from '@fluentui/react-icons'
 import { useEffect, useState } from 'react'
 import './App.css'
 import { MermaidEditor } from './components/MermaidEditor'
 import { renderMermaid } from './mermaid/render'
-import { insertDiagram, type DiagramFormat } from './word/insertDiagram'
+import { openEditorDialog } from './dialog/openEditorDialog'
+import type { DiagramPayload } from './metadata/payload'
+import { insertDiagram, type DiagramFormat, updateDiagram } from './word/insertDiagram'
 import { watchSelectedDiagram } from './word/selection'
 
 const initialDiagram = `flowchart TD
@@ -28,6 +31,7 @@ function App() {
   const [isRendering, setIsRendering] = useState(true)
   const [isInserting, setIsInserting] = useState(false)
   const [notice, setNotice] = useState('')
+  const [selectedDiagram, setSelectedDiagram] = useState<DiagramPayload | null>(null)
 
   useEffect(() => {
     let stopWatching: () => void = () => undefined
@@ -37,8 +41,11 @@ function App() {
       void Office.onReady().then(() => {
         const stop = watchSelectedDiagram(
           (payload) => {
-            setSource(payload.source)
-            setNotice('Selected Mermaid diagram loaded for editing.')
+            setSelectedDiagram(payload)
+            if (payload) {
+              setSource(payload.source)
+              setNotice('Selected Mermaid diagram loaded for editing.')
+            }
           },
           (error) => {
             setNotice(error.message)
@@ -93,10 +100,48 @@ function App() {
     setIsInserting(true)
     setNotice('')
     try {
-      const format: DiagramFormat = await insertDiagram(svg, source)
-      setNotice(`Diagram inserted as ${format.toUpperCase()}.`)
+      const format: DiagramFormat = selectedDiagram
+        ? await updateDiagram(svg, selectedDiagram, source)
+        : await insertDiagram(svg, source)
+      if (selectedDiagram) {
+        setSelectedDiagram({ ...selectedDiagram, source, format })
+      }
+      setNotice(
+        selectedDiagram
+          ? `Diagram updated as ${format.toUpperCase()}.`
+          : `Diagram inserted as ${format.toUpperCase()}.`,
+      )
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to insert diagram.')
+    } finally {
+      setIsInserting(false)
+    }
+  }
+
+  const handleOpenDialog = async () => {
+    setNotice('')
+    try {
+      const editedSource = await openEditorDialog(source)
+      if (editedSource === null) {
+        return
+      }
+
+      setIsInserting(true)
+      const rendered = await renderMermaid(editedSource)
+      const format = selectedDiagram
+        ? await updateDiagram(rendered, selectedDiagram, editedSource)
+        : await insertDiagram(rendered, editedSource)
+      setSource(editedSource)
+      if (selectedDiagram) {
+        setSelectedDiagram({ ...selectedDiagram, source: editedSource, format })
+      }
+      setNotice(
+        selectedDiagram
+          ? `Diagram updated as ${format.toUpperCase()}.`
+          : `Diagram inserted as ${format.toUpperCase()}.`,
+      )
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to open the editor.')
     } finally {
       setIsInserting(false)
     }
@@ -110,20 +155,49 @@ function App() {
             <Title2 as="h1">Mermaid Office</Title2>
             <Text block>Write Mermaid and insert a crisp diagram into Word.</Text>
           </div>
-          <Button
-            appearance="primary"
-            icon={<AddSquareRegular />}
-            disabled={!svg || Boolean(renderError) || isRendering || isInserting}
-            onClick={handleInsert}
-          >
-            {isInserting ? 'Inserting...' : 'Insert diagram'}
-          </Button>
+          <div className="header-actions">
+            {selectedDiagram && (
+              <Button
+                disabled={isInserting}
+                onClick={() => {
+                  setSelectedDiagram(null)
+                  setSource(initialDiagram)
+                  setNotice('Ready to insert a new diagram.')
+                }}
+              >
+                New diagram
+              </Button>
+            )}
+            <Button
+              icon={<OpenRegular />}
+              disabled={isInserting}
+              onClick={handleOpenDialog}
+            >
+              Expand editor
+            </Button>
+            <Button
+              appearance="primary"
+              icon={<AddSquareRegular />}
+              disabled={!svg || Boolean(renderError) || isRendering || isInserting}
+              onClick={handleInsert}
+            >
+              {isInserting
+                ? selectedDiagram
+                  ? 'Updating...'
+                  : 'Inserting...'
+                : selectedDiagram
+                  ? 'Update diagram'
+                  : 'Insert diagram'}
+            </Button>
+          </div>
         </header>
 
         {notice && (
           <MessageBar
             intent={
-              notice.startsWith('Diagram inserted') || notice.startsWith('Selected Mermaid')
+              notice.startsWith('Diagram inserted') ||
+              notice.startsWith('Diagram updated') ||
+              notice.startsWith('Selected Mermaid')
                 ? 'success'
                 : 'error'
             }
@@ -135,19 +209,23 @@ function App() {
         <section className="workspace" aria-label="Mermaid diagram workspace">
           <div className="panel">
             <Text weight="semibold">Diagram source</Text>
-            <MermaidEditor value={source} onChange={setSource} />
+            <MermaidEditor
+              value={source}
+              onChange={setSource}
+              diagnostic={renderError}
+            />
           </div>
 
           <div className="panel">
             <Text weight="semibold">Preview</Text>
             <div className="preview" aria-live="polite">
               {isRendering && <Spinner label="Rendering diagram" />}
-              {!isRendering && renderError && (
+              {renderError && (
                 <MessageBar intent="error">
                   <MessageBarBody>{renderError}</MessageBarBody>
                 </MessageBar>
               )}
-              {!isRendering && !renderError && (
+              {svg && (
                 <div
                   className="preview-svg"
                   // The SVG is sanitized after Mermaid renders it.

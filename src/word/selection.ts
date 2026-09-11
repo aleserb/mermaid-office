@@ -46,7 +46,7 @@ export async function getSelectedDiagram(): Promise<DiagramPayload | null> {
 }
 
 export function watchSelectedDiagram(
-  onSelected: (payload: DiagramPayload) => void,
+  onSelected: (payload: DiagramPayload | null) => void,
   onError: (error: Error) => void,
 ): () => void {
   if (typeof Office === 'undefined' || !Office.context?.document) {
@@ -66,7 +66,7 @@ export function watchSelectedDiagram(
     checking = true
     try {
       const payload = await getSelectedDiagram()
-      if (active && payload) {
+      if (active) {
         onSelected(payload)
       }
     } catch (error) {

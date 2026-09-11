@@ -8,6 +8,7 @@ export default defineConfig({
     rolldownOptions: {
       input: {
         commands: resolve(import.meta.dirname, 'commands.html'),
+        editor: resolve(import.meta.dirname, 'editor.html'),
         taskpane: resolve(import.meta.dirname, 'index.html'),
       },
     },
