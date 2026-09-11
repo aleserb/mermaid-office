@@ -12,7 +12,7 @@ application server receives diagram source or document content.
 - CodeMirror 6
 - Fluent UI React v9
 - Vitest and Testing Library
-- GitHub Pages and GitHub Actions
+- GitHub Pages
 
 SVG is the primary format on supported Word desktop clients. The add-in creates
 a PNG locally when SVG insertion is unavailable, including Word on the web.
@@ -37,6 +37,6 @@ npm run build
 
 ## Deployment
 
-Pushes to `main` build and deploy the static application with
-`.github/workflows/deploy-pages.yml`. Configure the repository's Pages source
-as **GitHub Actions** before the first deployment.
+Run `npm run deploy` to build the application and publish `dist` to the
+`gh-pages` branch. Configure the repository's Pages source as the root of that
+branch before the first deployment.
