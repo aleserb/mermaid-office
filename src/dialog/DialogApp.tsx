@@ -9,6 +9,7 @@ import {
   webLightTheme,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
+import { DiagramPreview } from '../components/DiagramPreview'
 import { MermaidEditor } from '../components/MermaidEditor'
 import { renderMermaid } from '../mermaid/render'
 import { parseParentMessage, type DialogToParentMessage } from './messages'
@@ -116,16 +117,7 @@ export function DialogApp() {
             </div>
             <div className="dialog-panel">
               <Text weight="semibold">Preview</Text>
-              <div className="dialog-preview" aria-live="polite">
-                {rendering && !svg && <Spinner label="Rendering diagram" />}
-                {svg && (
-                  <div
-                    className="preview-svg"
-                    // Mermaid output is sanitized before display.
-                    dangerouslySetInnerHTML={{ __html: svg }}
-                  />
-                )}
-              </div>
+              <DiagramPreview svg={svg} loading={rendering} />
             </div>
           </section>
         )}

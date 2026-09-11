@@ -40,6 +40,9 @@ Use **New diagram** to leave edit mode.
 Use **Expand editor** for a larger two-column editing dialog with a live
 preview. Parse failures are shown in the editor gutter, keep the last valid
 preview visible, and prevent saving until the source is valid.
+Preview controls support zooming in and out, resetting to fit, and dragging a
+zoomed diagram to pan. Hold Ctrl (Windows) or Command (macOS) while scrolling
+over the preview to zoom without taking over normal page scrolling.
 
 The ribbon's **Open editor** command opens this dialog directly without opening
 the task pane. Because this changes `manifest.xml`, remove and upload the

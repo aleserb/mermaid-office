@@ -59,31 +59,6 @@
   font-size: 13px;
 }
 
-.preview {
-  align-items: center;
-  background: #fafafa;
-  border: 1px solid #d1d1d1;
-  border-radius: 6px;
-  box-sizing: border-box;
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  min-height: 420px;
-  overflow: auto;
-  padding: 20px;
-}
-
-.preview-svg {
-  width: 100%;
-}
-
-.preview-svg svg {
-  display: block;
-  height: auto;
-  margin: auto;
-  max-width: 100%;
-}
-
 @media (max-width: 720px) {
   .app-header {
     align-items: stretch;
@@ -98,8 +73,7 @@
     grid-template-columns: 1fr;
   }
 
-  .editor,
-  .preview {
+  .editor {
     min-height: 300px;
   }
 }

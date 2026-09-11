@@ -3,7 +3,6 @@ import {
   FluentProvider,
   MessageBar,
   MessageBarBody,
-  Spinner,
   Text,
   Title2,
   webLightTheme,
@@ -12,6 +11,7 @@ import { AddSquareRegular } from '@fluentui/react-icons'
 import { OpenRegular } from '@fluentui/react-icons'
 import { useEffect, useState } from 'react'
 import './App.css'
+import { DiagramPreview } from './components/DiagramPreview'
 import { MermaidEditor } from './components/MermaidEditor'
 import { DEFAULT_DIAGRAM } from './defaultDiagram'
 import { renderMermaid } from './mermaid/render'
@@ -214,21 +214,7 @@ function App() {
 
           <div className="panel">
             <Text weight="semibold">Preview</Text>
-            <div className="preview" aria-live="polite">
-              {isRendering && <Spinner label="Rendering diagram" />}
-              {renderError && (
-                <MessageBar intent="error">
-                  <MessageBarBody>{renderError}</MessageBarBody>
-                </MessageBar>
-              )}
-              {svg && (
-                <div
-                  className="preview-svg"
-                  // The SVG is sanitized after Mermaid renders it.
-                  dangerouslySetInnerHTML={{ __html: svg }}
-                />
-              )}
-            </div>
+            <DiagramPreview svg={svg} loading={isRendering} error={renderError} />
           </div>
         </section>
       </main>
