@@ -13,19 +13,15 @@ import { OpenRegular } from '@fluentui/react-icons'
 import { useEffect, useState } from 'react'
 import './App.css'
 import { MermaidEditor } from './components/MermaidEditor'
+import { DEFAULT_DIAGRAM } from './defaultDiagram'
 import { renderMermaid } from './mermaid/render'
 import { openEditorDialog } from './dialog/openEditorDialog'
 import type { DiagramPayload } from './metadata/payload'
 import { insertDiagram, type DiagramFormat, updateDiagram } from './word/insertDiagram'
 import { watchSelectedDiagram } from './word/selection'
 
-const initialDiagram = `flowchart TD
-    Idea[Mermaid source] --> Render[Render as SVG]
-    Render --> Word[Insert into Word]
-    Word --> Edit[Edit later]`
-
 function App() {
-  const [source, setSource] = useState(initialDiagram)
+  const [source, setSource] = useState(DEFAULT_DIAGRAM)
   const [svg, setSvg] = useState('')
   const [renderError, setRenderError] = useState('')
   const [isRendering, setIsRendering] = useState(true)
@@ -161,7 +157,7 @@ function App() {
                 disabled={isInserting}
                 onClick={() => {
                   setSelectedDiagram(null)
-                  setSource(initialDiagram)
+                  setSource(DEFAULT_DIAGRAM)
                   setNotice('Ready to insert a new diagram.')
                 }}
               >

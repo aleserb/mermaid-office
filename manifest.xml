@@ -6,7 +6,7 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>9e2ab43d-705f-4f59-b861-a2b35eca6d41</Id>
-  <Version>1.0.0.0</Version>
+  <Version>1.0.1.0</Version>
   <ProviderName>aleserb</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Mermaid Office"/>
@@ -82,9 +82,8 @@
                     <bt:Image size="32" resid="MermaidOffice.Icon.32"/>
                     <bt:Image size="80" resid="MermaidOffice.Icon.80"/>
                   </Icon>
-                  <Action xsi:type="ShowTaskpane">
-                    <TaskpaneId>MermaidOffice.Taskpane</TaskpaneId>
-                    <SourceLocation resid="MermaidOffice.Taskpane.Url"/>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>openEditor</FunctionName>
                   </Action>
                 </Control>
               </Group>

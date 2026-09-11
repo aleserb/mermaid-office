@@ -41,6 +41,10 @@ Use **Expand editor** for a larger two-column editing dialog with a live
 preview. Parse failures are shown in the editor gutter, keep the last valid
 preview visible, and prevent saving until the source is valid.
 
+The ribbon's **Open editor** command opens this dialog directly without opening
+the task pane. Because this changes `manifest.xml`, remove and upload the
+manifest again after deployment.
+
 ## Checks
 
 ```bash
