@@ -4,6 +4,9 @@ Mermaid Office is a client-side Microsoft Word add-in for creating and editing
 Mermaid diagrams. Mermaid renders locally in the Office task pane; no
 application server receives diagram source or document content.
 
+See [design.md](design.md) for the product goals, user experience, architecture,
+compatibility strategy, and delivery plan.
+
 ## Technology
 
 - React, TypeScript, and Vite
