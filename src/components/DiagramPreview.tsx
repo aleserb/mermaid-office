@@ -1,6 +1,6 @@
 import { Button, MessageBar, MessageBarBody, Spinner } from '@fluentui/react-components'
 import {
-  ArrowFitRegular,
+  ScaleFillRegular,
   ZoomInRegular,
   ZoomOutRegular,
 } from '@fluentui/react-icons'
@@ -113,7 +113,7 @@ export function DiagramPreview({ svg, loading, error = '' }: DiagramPreviewProps
           appearance="subtle"
           aria-label="Fit diagram"
           title="Fit diagram"
-          icon={<ArrowFitRegular />}
+          icon={<ScaleFillRegular />}
           onClick={fit}
         />
       </div>
@@ -147,7 +147,6 @@ export function DiagramPreview({ svg, loading, error = '' }: DiagramPreviewProps
           <MessageBarBody>{error}</MessageBarBody>
         </MessageBar>
       )}
-      <span className="preview-hint">Ctrl/⌘ + wheel to zoom · Drag to pan</span>
     </div>
   )
 }

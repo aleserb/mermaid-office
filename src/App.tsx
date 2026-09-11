@@ -4,7 +4,6 @@ import {
   MessageBar,
   MessageBarBody,
   Text,
-  Title2,
   webLightTheme,
 } from '@fluentui/react-components'
 import { AddSquareRegular } from '@fluentui/react-icons'
@@ -147,10 +146,6 @@ function App() {
     <FluentProvider theme={webLightTheme}>
       <main className="app-shell">
         <header className="app-header">
-          <div>
-            <Title2 as="h1">Mermaid Office</Title2>
-            <Text block>Write Mermaid and insert a crisp diagram into Word.</Text>
-          </div>
           <div className="header-actions">
             {selectedDiagram && (
               <Button

@@ -76,13 +76,6 @@
   max-width: 100%;
 }
 
-.preview-hint {
-  color: #616161;
-  font-size: 11px;
-  padding: 0 10px 8px;
-  text-align: right;
-}
-
 @media (max-width: 720px) {
   .diagram-preview {
     min-height: 300px;

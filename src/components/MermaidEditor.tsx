@@ -4,6 +4,7 @@ import { indentWithTab } from '@codemirror/commands'
 import { lintGutter, setDiagnostics } from '@codemirror/lint'
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { createMermaidDiagnostic } from './editorDiagnostics'
+import { mermaidLanguage } from './mermaidLanguage'
 
 interface MermaidEditorProps {
   value: string
@@ -31,6 +32,7 @@ export function MermaidEditor({ value, onChange, diagnostic = '' }: MermaidEdito
         extensions: [
           lineNumbers(),
           lintGutter(),
+          mermaidLanguage,
           keymap.of([indentWithTab]),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({

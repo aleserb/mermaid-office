@@ -15,11 +15,7 @@
   align-items: center;
   display: flex;
   gap: 16px;
-  justify-content: space-between;
-}
-
-.app-header h1 {
-  margin: 0 0 4px;
+  justify-content: flex-end;
 }
 
 .header-actions {
