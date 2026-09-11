@@ -6,7 +6,12 @@ const themes: Array<{ value: DiagramTheme; label: string }> = [
   { value: 'neutral', label: 'Neutral' },
   { value: 'dark', label: 'Dark' },
   { value: 'forest', label: 'Forest' },
-  { value: 'redux', label: 'Redux' },
+  { value: 'neo', label: 'Neo' },
+  { value: 'neo-dark', label: 'Neo Dark' },
+  { value: 'redux-color', label: 'Redux Color' },
+  { value: 'redux-dark-color', label: 'Redux Dark Color' },
+  { value: 'redux', label: 'Redux Monochrome' },
+  { value: 'redux-dark', label: 'Redux Dark Monochrome' },
 ]
 
 interface ThemePickerProps {

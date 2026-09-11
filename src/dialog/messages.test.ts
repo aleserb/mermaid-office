@@ -5,12 +5,12 @@ describe('editor dialog messages', () => {
   it('parses initialization and save messages', () => {
     expect(
       parseParentMessage(
-        '{"type":"initialize","source":"flowchart LR","theme":"redux"}',
+        '{"type":"initialize","source":"flowchart LR","theme":"redux-color"}',
       ),
     ).toEqual({
       type: 'initialize',
       source: 'flowchart LR',
-      theme: 'redux',
+      theme: 'redux-color',
     })
     expect(
       parseDialogMessage(

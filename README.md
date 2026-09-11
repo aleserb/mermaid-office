@@ -44,8 +44,9 @@ Preview controls support zooming in and out, resetting to fit, and dragging a
 zoomed diagram to pan. Hold Ctrl (Windows) or Command (macOS) while scrolling
 over the preview to zoom without taking over normal page scrolling.
 
-The editor offers Default, Neutral, Dark, Forest, and Redux render themes. The
-selected theme is stored with the diagram so it is restored when editing later.
+The editor offers Mermaid's Default, Neutral, Dark, Forest, Neo, Redux Color,
+and monochrome Redux render themes, including their dark variants. The selected
+theme is stored with the diagram so it is restored when editing later.
 
 The ribbon's **Open editor** command opens this dialog directly without opening
 the task pane. Because this changes `manifest.xml`, remove and upload the

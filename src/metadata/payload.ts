@@ -4,14 +4,29 @@ export const CONTENT_CONTROL_TAG_PREFIX = `mermaid-office:v${DIAGRAM_SCHEMA_VERS
 export const DOCUMENT_SETTING_PREFIX = 'mermaid-office:diagram:'
 
 export type DiagramFormat = 'svg' | 'png'
-export type DiagramTheme = 'default' | 'neutral' | 'dark' | 'forest' | 'redux'
+export type DiagramTheme =
+  | 'default'
+  | 'neutral'
+  | 'dark'
+  | 'forest'
+  | 'neo'
+  | 'neo-dark'
+  | 'redux'
+  | 'redux-dark'
+  | 'redux-color'
+  | 'redux-dark-color'
 
 export const DIAGRAM_THEMES: DiagramTheme[] = [
   'default',
   'neutral',
   'dark',
   'forest',
+  'neo',
+  'neo-dark',
   'redux',
+  'redux-dark',
+  'redux-color',
+  'redux-dark-color',
 ]
 
 export interface DiagramPayload {

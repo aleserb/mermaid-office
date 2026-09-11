@@ -32,9 +32,9 @@ describe('diagram payload', () => {
     )
   })
 
-  it('accepts the Redux theme in stored diagram metadata', () => {
-    const payload = createDiagramPayload('flowchart LR\nA --> B', 'png', 'redux')
+  it('accepts the Redux Color theme in stored diagram metadata', () => {
+    const payload = createDiagramPayload('flowchart LR\nA --> B', 'png', 'redux-color')
 
-    expect(parseDiagramPayload(JSON.stringify(payload)).theme).toBe('redux')
+    expect(parseDiagramPayload(JSON.stringify(payload)).theme).toBe('redux-color')
   })
 })
