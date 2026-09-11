@@ -1,10 +1,16 @@
 import DOMPurify from 'dompurify'
-import mermaid from 'mermaid'
 import type { DiagramTheme } from '../metadata/payload'
 
 let renderSequence = 0
+let mermaidPromise: Promise<typeof import('mermaid')['default']> | undefined
 
-function initializeMermaid(theme: DiagramTheme) {
+async function loadMermaid() {
+  mermaidPromise ??= import('mermaid').then((module) => module.default)
+  return mermaidPromise
+}
+
+async function initializeMermaid(theme: DiagramTheme) {
+  const mermaid = await loadMermaid()
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
@@ -24,18 +30,18 @@ function initializeMermaid(theme: DiagramTheme) {
       'look',
     ],
   })
+  return mermaid
 }
 
 export async function renderMermaid(
   source: string,
   theme: DiagramTheme = 'default',
 ): Promise<string> {
-  initializeMermaid(theme)
-
   if (!source.trim()) {
     throw new Error('Enter Mermaid diagram source.')
   }
 
+  const mermaid = await initializeMermaid(theme)
   const id = `mermaid-office-${Date.now()}-${renderSequence++}`
   const { svg } = await mermaid.render(id, source)
 

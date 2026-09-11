@@ -12,19 +12,33 @@ import { useEffect, useState } from 'react'
 import './App.css'
 import { DiagramPreview } from './components/DiagramPreview'
 import { MermaidEditor } from './components/MermaidEditor'
+import { SizePicker } from './components/SizePicker'
+import { SplitWorkspace } from './components/SplitWorkspace'
 import { ThemePicker } from './components/ThemePicker'
 import { DEFAULT_DIAGRAM } from './defaultDiagram'
+import { normalizeMermaidError, type MermaidDiagnostic } from './mermaid/diagnostics'
 import { renderMermaid } from './mermaid/render'
 import { openEditorDialog } from './dialog/openEditorDialog'
-import type { DiagramPayload, DiagramTheme } from './metadata/payload'
+import type {
+  DiagramPayload,
+  DiagramSize,
+  DiagramTheme,
+} from './metadata/payload'
+import {
+  getPreferredSize,
+  getPreferredTheme,
+  setPreferredSize,
+  setPreferredTheme,
+} from './preferences/diagramPreferences'
 import { insertDiagram, type DiagramFormat, updateDiagram } from './word/insertDiagram'
 import { watchSelectedDiagram } from './word/selection'
 
 function App() {
   const [source, setSource] = useState(DEFAULT_DIAGRAM)
-  const [theme, setTheme] = useState<DiagramTheme>('default')
+  const [theme, setTheme] = useState<DiagramTheme>(getPreferredTheme)
+  const [size, setSize] = useState<DiagramSize>(getPreferredSize)
   const [svg, setSvg] = useState('')
-  const [renderError, setRenderError] = useState('')
+  const [renderError, setRenderError] = useState<MermaidDiagnostic | null>(null)
   const [isRendering, setIsRendering] = useState(true)
   const [isInserting, setIsInserting] = useState(false)
   const [notice, setNotice] = useState('')
@@ -42,6 +56,7 @@ function App() {
             if (payload) {
               setSource(payload.source)
               setTheme(payload.theme)
+              setSize(payload.size)
               setNotice('Selected Mermaid diagram loaded for editing.')
             }
           },
@@ -71,11 +86,11 @@ function App() {
         const rendered = await renderMermaid(source, theme)
         if (active) {
           setSvg(rendered)
-          setRenderError('')
+          setRenderError(null)
         }
       } catch (error) {
         if (active) {
-          setRenderError(error instanceof Error ? error.message : 'Unable to render diagram.')
+          setRenderError(normalizeMermaidError(error, source))
         }
       } finally {
         if (active) {
@@ -99,10 +114,17 @@ function App() {
     setNotice('')
     try {
       const format: DiagramFormat = selectedDiagram
-        ? await updateDiagram(svg, selectedDiagram, source, theme)
-        : await insertDiagram(svg, source, theme)
+        ? await updateDiagram(
+            svg,
+            selectedDiagram,
+            source,
+            theme,
+            size,
+            size !== selectedDiagram.size,
+          )
+        : await insertDiagram(svg, source, theme, size)
       if (selectedDiagram) {
-        setSelectedDiagram({ ...selectedDiagram, source, format })
+        setSelectedDiagram({ ...selectedDiagram, source, theme, size, format })
       }
       setNotice(
         selectedDiagram
@@ -119,7 +141,7 @@ function App() {
   const handleOpenDialog = async () => {
     setNotice('')
     try {
-      const result = await openEditorDialog(source, theme)
+      const result = await openEditorDialog(source, theme, size)
       if (result === null) {
         return
       }
@@ -127,15 +149,26 @@ function App() {
       setIsInserting(true)
       const rendered = await renderMermaid(result.source, result.theme)
       const format = selectedDiagram
-        ? await updateDiagram(rendered, selectedDiagram, result.source, result.theme)
-        : await insertDiagram(rendered, result.source, result.theme)
+        ? await updateDiagram(
+            rendered,
+            selectedDiagram,
+            result.source,
+            result.theme,
+            result.size,
+            result.size !== selectedDiagram.size,
+          )
+        : await insertDiagram(rendered, result.source, result.theme, result.size)
       setSource(result.source)
       setTheme(result.theme)
+      setSize(result.size)
+      setPreferredTheme(result.theme)
+      setPreferredSize(result.size)
       if (selectedDiagram) {
         setSelectedDiagram({
           ...selectedDiagram,
           source: result.source,
           theme: result.theme,
+          size: result.size,
           format,
         })
       }
@@ -162,7 +195,8 @@ function App() {
                 onClick={() => {
                   setSelectedDiagram(null)
                   setSource(DEFAULT_DIAGRAM)
-                  setTheme('default')
+                  setTheme(getPreferredTheme())
+                  setSize(getPreferredSize())
                   setNotice('Ready to insert a new diagram.')
                 }}
               >
@@ -207,24 +241,49 @@ function App() {
           </MessageBar>
         )}
 
-        <section className="workspace" aria-label="Mermaid diagram workspace">
-          <div className="panel">
-            <div className="editor-heading">
-              <Text weight="semibold">Diagram source</Text>
-              <ThemePicker value={theme} onChange={setTheme} />
+        <SplitWorkspace
+          className="workspace"
+          ariaLabel="Mermaid diagram workspace"
+          left={
+            <div className="panel">
+              <div className="editor-heading">
+                <Text weight="semibold">Diagram source</Text>
+                <div className="diagram-options">
+                  <ThemePicker
+                    value={theme}
+                    onChange={(value) => {
+                      setTheme(value)
+                      setPreferredTheme(value)
+                    }}
+                  />
+                  <SizePicker
+                    value={size}
+                    onChange={(value) => {
+                      setSize(value)
+                      setPreferredSize(value)
+                    }}
+                  />
+                </div>
+              </div>
+              <MermaidEditor
+                value={source}
+                onChange={setSource}
+                diagnostic={renderError}
+                historyKey={selectedDiagram?.id ?? 'new-diagram'}
+              />
             </div>
-            <MermaidEditor
-              value={source}
-              onChange={setSource}
-              diagnostic={renderError}
-            />
-          </div>
-
-          <div className="panel">
-            <Text weight="semibold">Preview</Text>
-            <DiagramPreview svg={svg} loading={isRendering} error={renderError} />
-          </div>
-        </section>
+          }
+          right={
+            <div className="panel">
+              <Text weight="semibold">Preview</Text>
+              <DiagramPreview
+                svg={svg}
+                loading={isRendering}
+                error={renderError?.message}
+              />
+            </div>
+          }
+        />
       </main>
     </FluentProvider>
   )

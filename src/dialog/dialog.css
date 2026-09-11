@@ -26,10 +26,8 @@
 }
 
 .dialog-workspace {
-  display: grid;
   flex: 1;
   gap: 16px;
-  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
   min-height: 0;
 }
 
@@ -46,7 +44,4 @@
     flex-direction: column;
   }
 
-  .dialog-workspace {
-    grid-template-columns: 1fr;
-  }
 }

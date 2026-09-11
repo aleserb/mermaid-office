@@ -1,0 +1,40 @@
+.split-workspace {
+  display: grid;
+  flex: 1;
+  grid-template-columns:
+    minmax(0, var(--editor-pane-width))
+    8px
+    minmax(0, 1fr);
+  min-height: 0;
+}
+
+.split-separator {
+  cursor: col-resize;
+  position: relative;
+  touch-action: none;
+}
+
+.split-separator::after {
+  background: #d1d1d1;
+  border-radius: 2px;
+  content: "";
+  inset: 0 3px;
+  position: absolute;
+}
+
+.split-separator:hover::after,
+.split-separator:focus-visible::after {
+  background: #0f6cbd;
+}
+
+@media (max-width: 720px) {
+  .split-workspace {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+  }
+
+  .split-separator {
+    display: none;
+  }
+}

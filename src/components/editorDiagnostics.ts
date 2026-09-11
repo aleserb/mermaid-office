@@ -1,25 +1,30 @@
 import type { Diagnostic } from '@codemirror/lint'
 import type { Text } from '@codemirror/state'
+import type { MermaidDiagnostic } from '../mermaid/diagnostics'
 
 export function createMermaidDiagnostic(
   document: Text,
-  message: string,
+  diagnostic: MermaidDiagnostic | null,
 ): Diagnostic | null {
-  if (!message) {
+  if (!diagnostic) {
     return null
   }
 
-  const lineMatch = message.match(/line\s+(\d+)/i)
   const lineNumber = Math.min(
-    Math.max(Number.parseInt(lineMatch?.[1] ?? '1', 10), 1),
+    Math.max(diagnostic.line, 1),
     document.lines,
   )
   const line = document.line(lineNumber)
+  const from = Math.min(line.to, line.from + Math.max(0, diagnostic.column - 1))
+  const to = Math.min(
+    line.to,
+    Math.max(from + 1, line.from + Math.max(diagnostic.endColumn - 1, 1)),
+  )
 
   return {
-    from: line.from,
-    to: Math.max(line.from, line.to),
+    from,
+    to,
     severity: 'error',
-    message,
+    message: diagnostic.message,
   }
 }

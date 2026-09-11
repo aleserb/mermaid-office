@@ -5,6 +5,7 @@ import {
   getDocumentSettingKey,
   type DiagramFormat,
   type DiagramPayload,
+  type DiagramSize,
   type DiagramTheme,
 } from '../metadata/payload'
 import { embedPayloadInSvg } from '../metadata/svgMetadata'
@@ -15,6 +16,13 @@ interface RasterizedDiagram {
   base64: string
   width: number
   height: number
+}
+
+const DIAGRAM_WIDTHS: Record<DiagramSize, number> = {
+  small: 216,
+  medium: 324,
+  large: 396,
+  'page-width': 468,
 }
 
 export function isSvgInsertionSupported(): boolean {
@@ -107,7 +115,13 @@ async function insertPngObject(
       raster.base64,
       Word.InsertLocation.replace,
     )
-    const dimensions = fitDiagram(raster.width, raster.height)
+    const dimensions = fitDiagram(
+      raster.width,
+      raster.height,
+      DIAGRAM_WIDTHS[payload.size],
+      650,
+      true,
+    )
     picture.width = dimensions.width
     picture.height = dimensions.height
     configureDiagramContentControl(picture, payload)
@@ -121,6 +135,8 @@ export async function updateDiagram(
   existing: DiagramPayload,
   source: string,
   theme: DiagramTheme = existing.theme,
+  size: DiagramSize = existing.size,
+  applySize = false,
 ): Promise<DiagramFormat> {
   if (typeof Word === 'undefined') {
     throw new Error('Open Mermaid Office inside Microsoft Word to update a diagram.')
@@ -130,6 +146,7 @@ export async function updateDiagram(
     ...existing,
     source,
     theme,
+    size,
     format: 'png',
   }
   const raster = await rasterizeSvg(svg)
@@ -160,7 +177,7 @@ export async function updateDiagram(
     }
 
     const existingPicture = contentControl.inlinePictures.getFirstOrNullObject()
-    existingPicture.load('width,altTextTitle,altTextDescription')
+    existingPicture.load('altTextTitle,altTextDescription,width')
     await context.sync()
 
     if (existingPicture.isNullObject) {
@@ -171,9 +188,20 @@ export async function updateDiagram(
       png,
       Word.InsertLocation.replace,
     )
-    const aspectRatio = raster.height / raster.width
-    replacement.width = existingPicture.width
-    replacement.height = existingPicture.width * aspectRatio
+    const dimensions = applySize
+      ? fitDiagram(
+          raster.width,
+          raster.height,
+          DIAGRAM_WIDTHS[size],
+          650,
+          true,
+        )
+      : {
+          width: existingPicture.width,
+          height: existingPicture.width * (raster.height / raster.width),
+        }
+    replacement.width = dimensions.width
+    replacement.height = dimensions.height
     replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
     replacement.altTextDescription =
       existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
@@ -193,8 +221,13 @@ export function fitDiagram(
   height: number,
   maxWidth = 500,
   maxHeight = 650,
+  allowUpscale = false,
 ): { width: number; height: number } {
-  const scale = Math.min(1, maxWidth / width, maxHeight / height)
+  const scale = Math.min(
+    allowUpscale ? Number.POSITIVE_INFINITY : 1,
+    maxWidth / width,
+    maxHeight / height,
+  )
   return {
     width: width * scale,
     height: height * scale,
@@ -210,6 +243,17 @@ async function wrapSelectedSvgObject(payload: DiagramPayload): Promise<void> {
       throw new Error('Word inserted the SVG but did not expose it as the current picture.')
     }
 
+    picture.load('width,height')
+    await context.sync()
+    const dimensions = fitDiagram(
+      picture.width,
+      picture.height,
+      DIAGRAM_WIDTHS[payload.size],
+      650,
+      true,
+    )
+    picture.width = dimensions.width
+    picture.height = dimensions.height
     const contentControl = configureDiagramContentControl(picture, payload)
     const setting = context.document.settings.add(
       getDocumentSettingKey(payload.id),
@@ -238,19 +282,20 @@ export async function insertDiagram(
   svg: string,
   source: string,
   theme: DiagramTheme = 'default',
+  size: DiagramSize = 'medium',
 ): Promise<DiagramFormat> {
   if (typeof Office === 'undefined' || !Office.context?.document) {
     throw new Error('Open Mermaid Office inside Microsoft Word to insert a diagram.')
   }
 
   if (isSvgInsertionSupported()) {
-    const payload = createDiagramPayload(source, 'svg', theme)
+    const payload = createDiagramPayload(source, 'svg', theme, size)
     await setSelectedData(embedPayloadInSvg(svg, payload), Office.CoercionType.XmlSvg)
     await wrapSelectedSvgObject(payload)
     return 'svg'
   }
 
-  const payload = createDiagramPayload(source, 'png', theme)
+  const payload = createDiagramPayload(source, 'png', theme, size)
   const raster = await rasterizeSvg(svg)
   const png = embedPayloadInPng(raster.base64, payload)
   await insertPngObject({ ...raster, base64: png }, payload)

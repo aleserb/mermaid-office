@@ -1,14 +1,16 @@
 import { parseDialogMessage, type ParentToDialogMessage } from './messages'
-import type { DiagramTheme } from '../metadata/payload'
+import type { DiagramSize, DiagramTheme } from '../metadata/payload'
 
 export interface EditorResult {
   source: string
   theme: DiagramTheme
+  size: DiagramSize
 }
 
 export function openEditorDialog(
   source: string,
   theme: DiagramTheme,
+  size: DiagramSize,
 ): Promise<EditorResult | null> {
   if (typeof Office === 'undefined' || !Office.context?.ui) {
     return Promise.reject(new Error('The expanded editor is available inside Microsoft Word.'))
@@ -58,10 +60,15 @@ export function openEditorDialog(
                   type: 'initialize',
                   source,
                   theme,
+                  size,
                 }
                 dialog.messageChild(JSON.stringify(initialization))
               } else if (message.type === 'save') {
-                finish({ source: message.source, theme: message.theme })
+                finish({
+                  source: message.source,
+                  theme: message.theme,
+                  size: message.size,
+                })
               } else {
                 finish(null)
               }

@@ -15,6 +15,13 @@ describe('isSvgInsertionSupported', () => {
       expect(fitDiagram(1000, 500)).toEqual({ width: 500, height: 250 })
       expect(fitDiagram(500, 1300)).toEqual({ width: 250, height: 650 })
     })
+
+    it('can upscale a diagram to a selected width preset', () => {
+      expect(fitDiagram(200, 100, 400, 650, true)).toEqual({
+        width: 400,
+        height: 200,
+      })
+    })
   })
 
   it('returns false outside an Office host', () => {

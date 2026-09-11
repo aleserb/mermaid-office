@@ -4,6 +4,7 @@ export const CONTENT_CONTROL_TAG_PREFIX = `mermaid-office:v${DIAGRAM_SCHEMA_VERS
 export const DOCUMENT_SETTING_PREFIX = 'mermaid-office:diagram:'
 
 export type DiagramFormat = 'svg' | 'png'
+export type DiagramSize = 'small' | 'medium' | 'large' | 'page-width'
 export type DiagramTheme =
   | 'default'
   | 'neutral'
@@ -28,12 +29,19 @@ export const DIAGRAM_THEMES: DiagramTheme[] = [
   'redux-color',
   'redux-dark-color',
 ]
+export const DIAGRAM_SIZES: DiagramSize[] = [
+  'small',
+  'medium',
+  'large',
+  'page-width',
+]
 
 export interface DiagramPayload {
   schemaVersion: typeof DIAGRAM_SCHEMA_VERSION
   id: string
   source: string
   theme: DiagramTheme
+  size: DiagramSize
   format: DiagramFormat
   rendererVersion: string
 }
@@ -42,6 +50,7 @@ export function createDiagramPayload(
   source: string,
   format: DiagramFormat,
   theme: DiagramTheme = 'default',
+  size: DiagramSize = 'medium',
 ): DiagramPayload {
   if (!source.trim()) {
     throw new Error('Mermaid source cannot be empty.')
@@ -52,6 +61,7 @@ export function createDiagramPayload(
     id: crypto.randomUUID(),
     source,
     theme,
+    size,
     format,
     rendererVersion: MERMAID_RENDERER_VERSION,
   }
@@ -87,7 +97,10 @@ export function parseDiagramPayload(value: string): DiagramPayload {
     throw new Error('Diagram metadata has an unsupported or invalid structure.')
   }
 
-  return candidate
+  return {
+    ...candidate,
+    size: candidate.size ?? 'medium',
+  }
 }
 
 function isDiagramPayload(value: unknown): value is DiagramPayload {
@@ -103,6 +116,8 @@ function isDiagramPayload(value: unknown): value is DiagramPayload {
     typeof payload.source === 'string' &&
     payload.source.trim().length > 0 &&
     DIAGRAM_THEMES.includes(payload.theme as DiagramTheme) &&
+    (payload.size === undefined ||
+      DIAGRAM_SIZES.includes(payload.size as DiagramSize)) &&
     ['svg', 'png'].includes(String(payload.format)) &&
     typeof payload.rendererVersion === 'string'
   )

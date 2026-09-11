@@ -1,14 +1,20 @@
-import { DIAGRAM_THEMES, type DiagramTheme } from '../metadata/payload'
+import {
+  DIAGRAM_SIZES,
+  DIAGRAM_THEMES,
+  type DiagramSize,
+  type DiagramTheme,
+} from '../metadata/payload'
 
 export type ParentToDialogMessage = {
   type: 'initialize'
   source: string
   theme: DiagramTheme
+  size: DiagramSize
 }
 
 export type DialogToParentMessage =
   | { type: 'ready' }
-  | { type: 'save'; source: string; theme: DiagramTheme }
+  | { type: 'save'; source: string; theme: DiagramTheme; size: DiagramSize }
   | { type: 'cancel' }
 
 export function parseParentMessage(value: string): ParentToDialogMessage {
@@ -18,7 +24,10 @@ export function parseParentMessage(value: string): ParentToDialogMessage {
     typeof message !== 'object' ||
     (message as Record<string, unknown>).type !== 'initialize' ||
     typeof (message as Record<string, unknown>).source !== 'string' ||
-    !DIAGRAM_THEMES.includes((message as Record<string, unknown>).theme as DiagramTheme)
+    !DIAGRAM_THEMES.includes(
+      (message as Record<string, unknown>).theme as DiagramTheme,
+    ) ||
+    !DIAGRAM_SIZES.includes((message as Record<string, unknown>).size as DiagramSize)
   ) {
     throw new Error('The editor received an invalid initialization message.')
   }
@@ -38,9 +47,15 @@ export function parseDialogMessage(value: string): DialogToParentMessage {
   if (
     data.type === 'save' &&
     typeof data.source === 'string' &&
-    DIAGRAM_THEMES.includes(data.theme as DiagramTheme)
+    DIAGRAM_THEMES.includes(data.theme as DiagramTheme) &&
+    DIAGRAM_SIZES.includes(data.size as DiagramSize)
   ) {
-    return { type: 'save', source: data.source, theme: data.theme as DiagramTheme }
+    return {
+      type: 'save',
+      source: data.source,
+      theme: data.theme as DiagramTheme,
+      size: data.size as DiagramSize,
+    }
   }
 
   throw new Error('The editor returned an unsupported message.')

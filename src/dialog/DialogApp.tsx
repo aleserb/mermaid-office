@@ -11,9 +11,16 @@ import {
 import { useEffect, useState } from 'react'
 import { DiagramPreview } from '../components/DiagramPreview'
 import { MermaidEditor } from '../components/MermaidEditor'
+import { SizePicker } from '../components/SizePicker'
+import { SplitWorkspace } from '../components/SplitWorkspace'
 import { ThemePicker } from '../components/ThemePicker'
+import { normalizeMermaidError, type MermaidDiagnostic } from '../mermaid/diagnostics'
 import { renderMermaid } from '../mermaid/render'
-import type { DiagramTheme } from '../metadata/payload'
+import type { DiagramSize, DiagramTheme } from '../metadata/payload'
+import {
+  setPreferredSize,
+  setPreferredTheme,
+} from '../preferences/diagramPreferences'
 import { parseParentMessage, type DialogToParentMessage } from './messages'
 import './dialog.css'
 
@@ -24,8 +31,9 @@ function sendToParent(message: DialogToParentMessage) {
 export function DialogApp() {
   const [source, setSource] = useState('')
   const [theme, setTheme] = useState<DiagramTheme>('default')
+  const [size, setSize] = useState<DiagramSize>('medium')
   const [svg, setSvg] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState<MermaidDiagnostic | null>(null)
   const [initialized, setInitialized] = useState(false)
   const [rendering, setRendering] = useState(false)
 
@@ -37,20 +45,17 @@ export function DialogApp() {
           const message = parseParentMessage(args.message)
           setSource(message.source)
           setTheme(message.theme)
+          setSize(message.size)
           setInitialized(true)
         } catch (messageError) {
-          setError(
-            messageError instanceof Error
-              ? messageError.message
-              : 'Unable to initialize the editor.',
-          )
+          setError(normalizeMermaidError(messageError))
         }
       },
       (result) => {
         if (result.status === Office.AsyncResultStatus.Succeeded) {
           sendToParent({ type: 'ready' })
         } else {
-          setError(result.error.message)
+          setError(normalizeMermaidError(result.error.message))
         }
       },
     )
@@ -68,13 +73,11 @@ export function DialogApp() {
         const rendered = await renderMermaid(source, theme)
         if (active) {
           setSvg(rendered)
-          setError('')
+          setError(null)
         }
       } catch (renderError) {
         if (active) {
-          setError(
-            renderError instanceof Error ? renderError.message : 'Unable to render diagram.',
-          )
+          setError(normalizeMermaidError(renderError, source))
         }
       } finally {
         if (active) {
@@ -99,7 +102,7 @@ export function DialogApp() {
             <Button
               appearance="primary"
               disabled={!initialized || rendering || Boolean(error)}
-              onClick={() => sendToParent({ type: 'save', source, theme })}
+              onClick={() => sendToParent({ type: 'save', source, theme, size })}
             >
               Save and Close
             </Button>
@@ -109,24 +112,49 @@ export function DialogApp() {
         {!initialized ? (
           <Spinner label="Loading diagram" />
         ) : (
-          <section className="dialog-workspace">
-            <div className="dialog-panel">
+          <SplitWorkspace
+            className="dialog-workspace"
+            ariaLabel="Mermaid diagram workspace"
+            left={
+              <div className="dialog-panel">
               <div className="editor-heading">
                 <Text weight="semibold">Diagram source</Text>
-                <ThemePicker value={theme} onChange={setTheme} />
+                  <div className="diagram-options">
+                    <ThemePicker
+                      value={theme}
+                      onChange={(value) => {
+                        setTheme(value)
+                        setPreferredTheme(value)
+                      }}
+                    />
+                    <SizePicker
+                      value={size}
+                      onChange={(value) => {
+                        setSize(value)
+                        setPreferredSize(value)
+                      }}
+                    />
+                  </div>
               </div>
-              <MermaidEditor value={source} onChange={setSource} diagnostic={error} />
+                <MermaidEditor
+                  value={source}
+                  onChange={setSource}
+                  diagnostic={error}
+                />
               {error && (
                 <MessageBar intent="error">
-                  <MessageBarBody>{error}</MessageBarBody>
+                    <MessageBarBody>{error.message}</MessageBarBody>
                 </MessageBar>
               )}
-            </div>
-            <div className="dialog-panel">
+              </div>
+            }
+            right={
+              <div className="dialog-panel">
               <Text weight="semibold">Preview</Text>
               <DiagramPreview svg={svg} loading={rendering} />
-            </div>
-          </section>
+              </div>
+            }
+          />
         )}
       </main>
     </FluentProvider>
