@@ -63,7 +63,7 @@ function App() {
     setIsInserting(true)
     setNotice('')
     try {
-      const format: DiagramFormat = await insertDiagram(svg)
+      const format: DiagramFormat = await insertDiagram(svg, source)
       setNotice(`Diagram inserted as ${format.toUpperCase()}.`)
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to insert diagram.')

@@ -2,6 +2,8 @@
 <OfficeApp
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>9e2ab43d-705f-4f59-b861-a2b35eca6d41</Id>
   <Version>1.0.0.0</Version>
@@ -21,10 +23,118 @@
   <Requirements>
     <Sets DefaultMinVersion="1.1">
       <Set Name="ImageCoercion" MinVersion="1.1"/>
+      <Set Name="WordApi" MinVersion="1.4"/>
     </Sets>
   </Requirements>
   <DefaultSettings>
     <SourceLocation DefaultValue="https://aleserb.github.io/mermaid-office/"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides
+    xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+    xsi:type="VersionOverridesV1_0">
+    <Requirements>
+      <bt:Sets DefaultMinVersion="1.1">
+        <bt:Set Name="WordApi" MinVersion="1.4"/>
+      </bt:Sets>
+    </Requirements>
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="MermaidOffice.GetStarted.Title"/>
+            <Description resid="MermaidOffice.GetStarted.Desc"/>
+            <LearnMoreUrl resid="MermaidOffice.LearnMore.Url"/>
+          </GetStarted>
+          <FunctionFile resid="MermaidOffice.Commands.Url"/>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabInsert">
+              <Group id="MermaidOffice.InsertGroup">
+                <Label resid="MermaidOffice.Group.Label"/>
+                <Icon>
+                  <bt:Image size="16" resid="MermaidOffice.Icon.16"/>
+                  <bt:Image size="32" resid="MermaidOffice.Icon.32"/>
+                  <bt:Image size="80" resid="MermaidOffice.Icon.80"/>
+                </Icon>
+                <Control xsi:type="Button" id="MermaidOffice.InsertButton">
+                  <Label resid="MermaidOffice.Insert.Label"/>
+                  <Supertip>
+                    <Title resid="MermaidOffice.Insert.Label"/>
+                    <Description resid="MermaidOffice.Insert.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="MermaidOffice.Icon.16"/>
+                    <bt:Image size="32" resid="MermaidOffice.Icon.32"/>
+                    <bt:Image size="80" resid="MermaidOffice.Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ExecuteFunction">
+                    <FunctionName>insertDefaultDiagram</FunctionName>
+                  </Action>
+                </Control>
+                <Control xsi:type="Button" id="MermaidOffice.TaskpaneButton">
+                  <Label resid="MermaidOffice.Editor.Label"/>
+                  <Supertip>
+                    <Title resid="MermaidOffice.Editor.Label"/>
+                    <Description resid="MermaidOffice.Editor.Tooltip"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="MermaidOffice.Icon.16"/>
+                    <bt:Image size="32" resid="MermaidOffice.Icon.32"/>
+                    <bt:Image size="80" resid="MermaidOffice.Icon.80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>MermaidOffice.Taskpane</TaskpaneId>
+                    <SourceLocation resid="MermaidOffice.Taskpane.Url"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image
+          id="MermaidOffice.Icon.16"
+          DefaultValue="https://aleserb.github.io/mermaid-office/assets/icon-16.png"/>
+        <bt:Image
+          id="MermaidOffice.Icon.32"
+          DefaultValue="https://aleserb.github.io/mermaid-office/assets/icon-32.png"/>
+        <bt:Image
+          id="MermaidOffice.Icon.80"
+          DefaultValue="https://aleserb.github.io/mermaid-office/assets/icon-80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url
+          id="MermaidOffice.Commands.Url"
+          DefaultValue="https://aleserb.github.io/mermaid-office/commands.html"/>
+        <bt:Url
+          id="MermaidOffice.Taskpane.Url"
+          DefaultValue="https://aleserb.github.io/mermaid-office/"/>
+        <bt:Url
+          id="MermaidOffice.LearnMore.Url"
+          DefaultValue="https://github.com/aleserb/mermaid-office"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="MermaidOffice.Group.Label" DefaultValue="Mermaid"/>
+        <bt:String id="MermaidOffice.Insert.Label" DefaultValue="Mermaid"/>
+        <bt:String id="MermaidOffice.Editor.Label" DefaultValue="Open editor"/>
+        <bt:String
+          id="MermaidOffice.GetStarted.Title"
+          DefaultValue="Create Mermaid diagrams in Word"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String
+          id="MermaidOffice.Insert.Tooltip"
+          DefaultValue="Insert a new Mermaid flowchart at the current selection."/>
+        <bt:String
+          id="MermaidOffice.Editor.Tooltip"
+          DefaultValue="Open the Mermaid source editor and live preview."/>
+        <bt:String
+          id="MermaidOffice.GetStarted.Desc"
+          DefaultValue="Use Insert > Mermaid to add a diagram, or open the editor to write Mermaid source."/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
 </OfficeApp>

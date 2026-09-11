@@ -29,6 +29,8 @@ npm run dev
 
 The regular browser view supports editor and preview development. Diagram
 insertion must be tested by sideloading `manifest.xml` in Microsoft Word.
+After manifest changes, remove and upload the manifest again because Word caches
+the sideloaded manifest separately from the hosted web application.
 
 ## Checks
 
