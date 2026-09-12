@@ -4,8 +4,12 @@ import {
   findVisiblePixelBounds,
   insertPngObject,
   normalizeSvgDimensions,
+  updateDiagram,
 } from './insertDiagram'
 import { createDiagramPayload, getDocumentSettingKey } from '../metadata/payload'
+
+const transparentPixel =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwX9WQAAAABJRU5ErkJggg=='
 
 describe('Word diagram insertion', () => {
   describe('fitDiagram', () => {
@@ -123,6 +127,76 @@ describe('Word diagram insertion', () => {
     expect(settingsAdd).toHaveBeenCalledWith(
       getDocumentSettingKey(payload.id),
       JSON.stringify(payload),
+    )
+  })
+
+  it('clears the old picture before inserting an updated diagram', async () => {
+    const sync = vi.fn().mockResolvedValue(undefined)
+    const clear = vi.fn()
+    const insertInlinePictureFromBase64 = vi.fn().mockReturnValue({
+      altTextTitle: '',
+      altTextDescription: '',
+      width: 0,
+      height: 0,
+    })
+    const existingPicture = {
+      isNullObject: false,
+      width: 324,
+      altTextTitle: 'Mermaid diagram',
+      altTextDescription: 'Diagram created with Mermaid Office.',
+      load: vi.fn(),
+    }
+    const existing = createDiagramPayload(
+      'flowchart LR\nA --> B',
+      'png',
+      'default',
+      'medium',
+    )
+    const contentControl = {
+      isNullObject: false,
+      tag: `mermaid-office:v1:${existing.id}`,
+      load: vi.fn(),
+      clear,
+      select: vi.fn(),
+      inlinePictures: {
+        getFirstOrNullObject: vi.fn().mockReturnValue(existingPicture),
+      },
+      insertInlinePictureFromBase64,
+    }
+    const context = {
+      document: {
+        getSelection: () => ({
+          parentContentControlOrNullObject: contentControl,
+          inlinePictures: {
+            getFirstOrNullObject: vi.fn().mockReturnValue({ isNullObject: true }),
+          },
+        }),
+        settings: { add: vi.fn() },
+      },
+      sync,
+    }
+
+    vi.stubGlobal('Word', {
+      run: vi.fn(async (callback) => callback(context)),
+      InsertLocation: { replace: 'Replace' },
+    })
+
+    await updateDiagram(
+      '<svg/>',
+      existing,
+      'flowchart LR\nA',
+      'default',
+      'medium',
+      false,
+      { base64: transparentPixel, width: 100, height: 60 },
+    )
+
+    expect(clear).toHaveBeenCalledOnce()
+    expect(clear.mock.invocationCallOrder[0]).toBeLessThan(
+      insertInlinePictureFromBase64.mock.invocationCallOrder[0],
+    )
+    expect(sync.mock.invocationCallOrder[2]).toBeLessThan(
+      insertInlinePictureFromBase64.mock.invocationCallOrder[0],
     )
   })
 })
