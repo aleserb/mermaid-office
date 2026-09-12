@@ -80,6 +80,9 @@ and prevent insertion or live updates until the source is valid.
 The source editor includes Mermaid-aware syntax highlighting and autocomplete,
 common diagram snippets, automatic bracket and quote closing, standard editor
 keyboard shortcuts, and a link to the Mermaid syntax reference.
+The fixed-height header places Insert on the left and the settings gear and
+syntax-reference document-info icon on the right. Insert is hidden while editing
+an existing diagram without shifting the editor.
 The active line and its line number are highlighted. The editor's built-in
 search and replace panel and its shortcuts are disabled.
 In sequence diagrams, autocomplete also suggests participant and actor IDs from

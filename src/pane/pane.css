@@ -14,27 +14,48 @@ html body {
 }
 
 .pane-header {
-  display: flex;
-  flex-shrink: 0;
-  justify-content: flex-end;
-}
-
-.pane-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.pane-footer {
   align-items: center;
   display: flex;
   flex-shrink: 0;
   gap: 8px;
+  height: 28px;
 }
 
-.pane-footer .syntax-help {
+.pane-actions,
+.pane-tools {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.pane-tools {
   flex-shrink: 0;
   margin-left: auto;
+}
+
+.pane-header .fui-Button {
+  height: 28px;
+  min-height: 28px;
+  white-space: nowrap;
+}
+
+.pane-tools .syntax-help {
+  align-items: center;
+  border-radius: 4px;
+  color: inherit;
+  display: inline-flex;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.pane-tools .syntax-help:hover {
+  background: #f5f5f5;
+}
+
+.pane-tools .syntax-help:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 .pane-shell .editor-shell {

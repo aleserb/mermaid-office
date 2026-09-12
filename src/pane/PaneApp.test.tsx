@@ -54,11 +54,17 @@ it('shows a light code-only editor without a preview and does not insert automat
   const { container } = render(<PaneApp />)
   expect(await screen.findByRole('textbox', { name: 'Mermaid diagram source' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Insert' })).toBeInTheDocument()
-  const footer = screen.getByRole('contentinfo')
-  expect(within(footer).getByRole('button', { name: 'Insert' })).toBeInTheDocument()
-  expect(within(footer).getByRole('link', { name: 'Mermaid syntax' })).toBeInTheDocument()
-  expect(container.querySelector('.editor-shell')?.nextElementSibling).toBe(footer)
-  expect(within(screen.getByRole('banner')).queryByRole('link')).not.toBeInTheDocument()
+  const header = screen.getByRole('banner')
+  expect(within(header).getByRole('button', { name: 'Insert' }).parentElement)
+    .toBe(header.firstElementChild)
+  const syntax = within(header).getByRole('link', { name: 'Mermaid syntax' })
+  expect(syntax).toHaveAttribute('title', 'Mermaid syntax')
+  expect(syntax).toHaveAttribute('href', 'https://mermaid.js.org/intro/syntax-reference.html')
+  expect(syntax).toHaveAttribute('target', '_blank')
+  expect(syntax.textContent).toBe('')
+  expect(syntax.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  expect(syntax.previousElementSibling).toBe(within(header).getByRole('button', { name: 'Diagram settings' }))
+  expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Edit selected' })).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'New diagram' })).not.toBeInTheDocument()
   expect(screen.queryByText(/Build .*Experimental pane/)).not.toBeInTheDocument()
@@ -185,7 +191,7 @@ it('hides Insert and saved-diagram instructions until the diagram is deselected'
   expect(screen.queryByText('Select another diagram to edit it, or a blank line to insert a new one.'))
     .not.toBeInTheDocument()
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
-  expect(within(screen.getByRole('contentinfo')).getByRole('link', { name: 'Mermaid syntax' }))
+  expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Mermaid syntax' }))
     .toBeInTheDocument()
 
   act(() => {
@@ -193,7 +199,7 @@ it('hides Insert and saved-diagram instructions until the diagram is deselected'
     options?.onSelectionChange?.()
     onSelected(null)
   })
-  expect(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Insert' }))
+  expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Insert' }))
     .toBeInTheDocument()
 })
 
@@ -235,7 +241,7 @@ it('disables settings while loading the selected diagram', async () => {
   expect(screen.getByRole('button', { name: 'Diagram settings' })).toBeDisabled()
 })
 
-it.each(['render', 'word'])('shows %s errors below the code editor and above the footer', async (kind) => {
+it.each(['render', 'word'])('shows %s errors below the code editor', async (kind) => {
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   vi.stubGlobal('ResizeObserver', class {
     observe() {}
@@ -255,7 +261,7 @@ it.each(['render', 'word'])('shows %s errors below the code editor and above the
   const error = await screen.findByText(message, { exact: false }, { timeout: 2000 })
   const bar = error.closest('.fui-MessageBar')
   expect(container.querySelector('.editor-shell')?.nextElementSibling).toBe(bar)
-  expect(bar?.nextElementSibling).toBe(screen.getByRole('contentinfo'))
+  expect(bar?.nextElementSibling).toBeNull()
   expect(screen.getByRole('button', { name: 'Insert' })).toBeDisabled()
 })
 it('opens Office-hosted settings without a pane modal and unlocks after an opening error', async () => {

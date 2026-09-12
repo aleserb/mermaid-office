@@ -75,33 +75,46 @@ export function PaneApp() {
     <FluentProvider theme={webLightTheme} style={{ colorScheme: 'light' }}>
       <main className="pane-shell" inert={editor.settingsActive}>
         <header className="pane-header">
-          <DiagramSettingsDialog
-            open={settingsHistoryKey === editor.historyKey && !editor.pending}
-            theme={editor.draft.theme}
-            settings={editor.draft.settings}
-            diagramKind={editor.diagramKind}
-            disabled={busy || !!editor.pending}
-            onOpen={openSettings}
-            onCancel={closeSettings}
-            onApply={(theme, settings) => {
-              if (busy || editor.pending || settingsHistoryKey !== editor.historyKey) return
-              editor.applySettings(theme, settings)
-              closeSettings()
-            }}
-            trigger={<Button
-              ref={settingsButton}
-              appearance="subtle"
-              size="small"
-              aria-label="Diagram settings"
-              title="Diagram settings"
+          <div className="pane-actions">
+            {!editor.target && (
+              <Button appearance="primary" size="small" disabled={!editor.canInsert} onClick={() => void editor.insert()}>
+                Insert
+              </Button>
+            )}
+            {editor.canRetry && (
+              <Button size="small" disabled={busy} onClick={editor.retry}>Retry update</Button>
+            )}
+          </div>
+          <div className="pane-tools">
+            <DiagramSettingsDialog
+              open={settingsHistoryKey === editor.historyKey && !editor.pending}
+              theme={editor.draft.theme}
+              settings={editor.draft.settings}
+              diagramKind={editor.diagramKind}
               disabled={busy || !!editor.pending}
-              icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-                <path d="m9.5 3-.6 2.3-1.8 1.1-2.3-.6-2.5 4.4L4 11.8v2.1l-1.7 1.6 2.5 4.3 2.3-.6 1.8 1.1.6 2.2h5l.6-2.2 1.8-1.1 2.3.6 2.5-4.3-1.7-1.6v-2.1l1.7-1.6-2.5-4.4-2.3.6-1.8-1.1L14.5 3h-5Z"
-                  stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" transform="translate(0 -1)" />
-                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
-              </svg>}
-            />}
-          />
+              onOpen={openSettings}
+              onCancel={closeSettings}
+              onApply={(theme, settings) => {
+                if (busy || editor.pending || settingsHistoryKey !== editor.historyKey) return
+                editor.applySettings(theme, settings)
+                closeSettings()
+              }}
+              trigger={<Button
+                ref={settingsButton}
+                appearance="subtle"
+                size="small"
+                aria-label="Diagram settings"
+                title="Diagram settings"
+                disabled={busy || !!editor.pending}
+                icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                  <path d="m9.5 3-.6 2.3-1.8 1.1-2.3-.6-2.5 4.4L4 11.8v2.1l-1.7 1.6 2.5 4.3 2.3-.6 1.8 1.1.6 2.2h5l.6-2.2 1.8-1.1 2.3.6 2.5-4.3-1.7-1.6v-2.1l1.7-1.6-2.5-4.4-2.3.6-1.8-1.1L14.5 3h-5Z"
+                    stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" transform="translate(0 -1)" />
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
+                </svg>}
+              />}
+            />
+            <SyntaxHelpLink />
+          </div>
         </header>
 
         {status && <Caption1 role="status">{status}</Caption1>}
@@ -128,20 +141,6 @@ export function PaneApp() {
             <MessageBarBody>{editor.diagnostic.message}</MessageBarBody>
           </MessageBar>
         )}
-
-        <footer className="pane-footer">
-          {(!editor.target || editor.canRetry) && <div className="pane-actions">
-            {!editor.target && (
-              <Button appearance="primary" size="small" disabled={!editor.canInsert} onClick={() => void editor.insert()}>
-                Insert
-              </Button>
-            )}
-            {editor.canRetry && (
-              <Button disabled={busy} onClick={editor.retry}>Retry update</Button>
-            )}
-          </div>}
-          <SyntaxHelpLink />
-        </footer>
 
         <Dialog open={!!editor.pending} onOpenChange={(_, data) => {
           if (!data.open) editor.keepEditing()
