@@ -39,7 +39,6 @@ export function PaneApp() {
           </div>
           <div className="pane-actions">
             <Button disabled={busy} onClick={editor.newDiagram}>New diagram</Button>
-            <Button disabled={busy} onClick={() => void editor.loadSelected()}>Edit selected</Button>
             {!editor.target && (
               <Button appearance="primary" disabled={!editor.canInsert} onClick={() => void editor.insert()}>
                 Insert diagram
@@ -53,7 +52,7 @@ export function PaneApp() {
 
         <Caption1 role="status">{status}</Caption1>
         {editor.target && (
-          <Caption1>Live updates stay linked to this diagram. Use Edit selected to switch diagrams.</Caption1>
+          <Caption1>Select another diagram to edit it, or a blank line to insert a new one.</Caption1>
         )}
         {editor.wordError && (
           <MessageBar intent="error">

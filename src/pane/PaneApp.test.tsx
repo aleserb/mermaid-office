@@ -12,6 +12,10 @@ vi.mock('../word/insertDiagram', () => ({
 }))
 vi.mock('../word/selection', () => ({
   getSelectedDiagram: vi.fn().mockResolvedValue(null),
+  watchSelectedDiagram: vi.fn((onSelected) => {
+    onSelected(null)
+    return Object.assign(vi.fn(), { refresh: vi.fn() })
+  }),
 }))
 
 afterEach(() => {
@@ -22,11 +26,11 @@ afterEach(() => {
 
 it('shows a light code-only editor without a preview and does not insert automatically', async () => {
   vi.stubGlobal('__BUILD_VERSION__', 'test')
-  vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}) })
+  vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   const { container } = render(<PaneApp />)
   expect(await screen.findByRole('textbox', { name: 'Mermaid diagram source' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Insert diagram' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Edit selected' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Edit selected' })).not.toBeInTheDocument()
   expect(screen.getByRole('combobox', { name: 'Diagram theme' })).toBeInTheDocument()
   expect(container.querySelector('.diagram-preview')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Zoom in' })).not.toBeInTheDocument()

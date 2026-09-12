@@ -5,7 +5,7 @@ import { renderMermaid } from '../mermaid/render'
 import type { DiagramPayload, DiagramSize, DiagramTheme } from '../metadata/payload'
 import { getPreferredTheme, setPreferredTheme } from '../preferences/diagramPreferences'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
-import { getSelectedDiagram } from '../word/selection'
+import { getSelectedDiagram, watchSelectedDiagram, type DiagramSelectionWatcher } from '../word/selection'
 
 export const LIVE_UPDATE_DELAY = 600
 
@@ -49,6 +49,10 @@ export function usePaneEditor() {
   const busy = useRef(false)
   const draftRef = useRef(draft)
   const savedRef = useRef<Draft>(baseline)
+  const targetRef = useRef<DiagramPayload | null>(null)
+  const lastSelectionId = useRef<string | null | undefined>(undefined)
+  const selectionFromDocument = useRef(false)
+  const watcher = useRef<DiagramSelectionWatcher | null>(null)
 
   const activate = useCallback((payload: DiagramPayload | null) => {
     const next = payload
@@ -56,6 +60,7 @@ export function usePaneEditor() {
       : newDraft()
     draftRef.current = next
     savedRef.current = next
+    targetRef.current = payload
     setDraft(next)
     setBaseline(next)
     setTarget(payload)
@@ -67,6 +72,32 @@ export function usePaneEditor() {
     setHistoryKey((key) => key + 1)
   }, [])
 
+  const requestTarget = useCallback((payload: DiagramPayload | null) => {
+    if (!sameDraft(draftRef.current, savedRef.current)) {
+      setPending({ target: payload })
+    } else {
+      activate(payload)
+    }
+  }, [activate])
+
+  const receiveSelection = useCallback((payload: DiagramPayload | null) => {
+    const fromDocument = selectionFromDocument.current
+    selectionFromDocument.current = false
+    setLoadingSelection(false)
+    const id = payload?.id ?? null
+
+    // Picture replacement can clear Word's selection while focus stays in the
+    // pane. A real document selection gesture, however, must switch the editor.
+    if (!payload && targetRef.current && !fromDocument && document.hasFocus()) return
+    if (id === lastSelectionId.current) return
+    lastSelectionId.current = id
+    if (id === (targetRef.current?.id ?? null)) {
+      setPending(null)
+      return
+    }
+    requestTarget(payload)
+  }, [requestTarget])
+
   useEffect(() => {
     mounted.current = true
     let active = true
@@ -77,20 +108,45 @@ export function usePaneEditor() {
         }
         await Office.onReady()
         if (!active) return
-        const selected = await getSelectedDiagram()
-        if (active && selected) activate(selected)
+        if (!Office.context?.document) {
+          throw new Error('Open Mermaid pane inside Microsoft Word to follow document selection.')
+        }
+        watcher.current = watchSelectedDiagram(
+          (selected) => {
+            if (!active) return
+            receiveSelection(selected)
+            setReady(true)
+          },
+          (error) => {
+            if (!active) return
+            setWordError(error.message)
+            setLoadingSelection(true)
+            setReady(true)
+          },
+          {
+            isPaused: () => busy.current,
+            onSelectionChange: () => {
+              if (!active) return
+              selectionFromDocument.current ||= !document.hasFocus()
+              setLoadingSelection(true)
+            },
+          },
+        )
       } catch (error) {
-        if (active) setWordError(errorMessage(error))
-      } finally {
-        if (active) setReady(true)
+        if (active) {
+          setWordError(errorMessage(error))
+          setReady(true)
+        }
       }
     }
     void initialize()
     return () => {
       active = false
       mounted.current = false
+      watcher.current?.()
+      watcher.current = null
     }
-  }, [activate])
+  }, [receiveSelection])
 
   useEffect(() => {
     if (!ready) return
@@ -127,6 +183,7 @@ export function usePaneEditor() {
     ).then((format) => {
       const saved = { ...target, ...draft, format }
       savedRef.current = saved
+      targetRef.current = saved
       if (mounted.current) {
         setTarget(saved)
         setFailedWrite(null)
@@ -139,7 +196,10 @@ export function usePaneEditor() {
       }
     }).finally(() => {
       busy.current = false
-      if (mounted.current) setWriting(false)
+      if (mounted.current) {
+        setWriting(false)
+        watcher.current?.refresh()
+      }
     })
   }, [draft, failedWrite, loadingSelection, pending, ready, rendered, target, writing])
 
@@ -174,37 +234,17 @@ export function usePaneEditor() {
         rendered.svg, draft.source, draft.theme, draft.size, undefined, { requireEmptySelection: true },
       )
       savedRef.current = inserted
+      targetRef.current = inserted
+      lastSelectionId.current = inserted.id
       if (mounted.current) setTarget(inserted)
     } catch (error) {
       if (mounted.current) setWordError(errorMessage(error))
     } finally {
       busy.current = false
-      if (mounted.current) setWriting(false)
-    }
-  }
-
-  const requestTarget = (payload: DiagramPayload | null) => {
-    if (!sameDraft(draftRef.current, savedRef.current)) {
-      setPending({ target: payload })
-    } else {
-      activate(payload)
-    }
-  }
-
-  const loadSelected = async () => {
-    if (busy.current) return
-    busy.current = true
-    setLoadingSelection(true)
-    setWordError('')
-    try {
-      const selected = await getSelectedDiagram()
-      if (!selected) throw new Error('Select a Mermaid diagram picture in Word first.')
-      if (mounted.current) requestTarget(selected)
-    } catch (error) {
-      if (mounted.current) setWordError(errorMessage(error))
-    } finally {
-      busy.current = false
-      if (mounted.current) setLoadingSelection(false)
+      if (mounted.current) {
+        setWriting(false)
+        watcher.current?.refresh()
+      }
     }
   }
 
@@ -215,8 +255,13 @@ export function usePaneEditor() {
     canInsert: ready && !target && Boolean(rendered && sameDraft(rendered.draft, draft)) &&
       !diagnostic && !writing && !loadingSelection,
     canRetry: Boolean(failedWrite && rendered === failedWrite),
-    changeSource, changeTheme, insert, loadSelected,
-    newDiagram: () => { if (!busy.current) requestTarget(null) },
+    changeSource, changeTheme, insert,
+    newDiagram: () => {
+      if (!busy.current) {
+        lastSelectionId.current = undefined
+        requestTarget(null)
+      }
+    },
     keepEditing: () => setPending(null),
     discardAndSwitch: () => { if (pending && !busy.current) activate(pending.target) },
     retry: () => setFailedWrite(null),

@@ -1,9 +1,10 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDiagramPayload } from '../metadata/payload'
+import { DEFAULT_DIAGRAM } from '../defaultDiagram'
 import { renderMermaid } from '../mermaid/render'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
-import { getSelectedDiagram } from '../word/selection'
+import { getSelectedDiagram, watchSelectedDiagram } from '../word/selection'
 import { LIVE_UPDATE_DELAY, usePaneEditor } from './usePaneEditor'
 
 vi.mock('../mermaid/render', () => ({ renderMermaid: vi.fn() }))
@@ -11,14 +12,37 @@ vi.mock('../word/insertDiagram', () => ({
   insertDiagramWithPayload: vi.fn(),
   updateDiagramById: vi.fn(),
 }))
-vi.mock('../word/selection', () => ({ getSelectedDiagram: vi.fn() }))
+vi.mock('../word/selection', () => ({ getSelectedDiagram: vi.fn(), watchSelectedDiagram: vi.fn() }))
 
 const existing = createDiagramPayload('flowchart LR\nA-->B', 'png', 'forest')
+let selected: typeof existing | null = null
+let receiveSelection: (payload: typeof existing | null) => void
+let notifySelection: (() => void) | undefined
+let isPaused: (() => boolean) | undefined
+const stopWatching = vi.fn()
+const refreshSelection = vi.fn()
+
+function selectInWord(payload: typeof existing | null, fromDocument = true) {
+  selected = payload
+  vi.mocked(document.hasFocus).mockReturnValue(!fromDocument)
+  notifySelection?.()
+  vi.mocked(document.hasFocus).mockReturnValue(true)
+  if (!isPaused?.()) receiveSelection(payload)
+}
 
 beforeEach(() => {
   vi.useFakeTimers()
-  vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}) })
+  vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   vi.mocked(getSelectedDiagram).mockResolvedValue(null)
+  vi.mocked(watchSelectedDiagram).mockImplementation((onSelected, _onError, options) => {
+    receiveSelection = onSelected
+    notifySelection = options?.onSelectionChange
+    isPaused = options?.isPaused
+    refreshSelection.mockImplementation(() => { if (!isPaused?.()) onSelected(selected) })
+    void getSelectedDiagram().then(onSelected)
+    return Object.assign(stopWatching, { refresh: refreshSelection })
+  })
   vi.mocked(renderMermaid).mockImplementation(async (source) => `<svg>${source}</svg>`)
   vi.mocked(updateDiagramById).mockResolvedValue('png')
   vi.mocked(insertDiagramWithPayload).mockImplementation(async (_svg, source, theme, size) =>
@@ -35,6 +59,7 @@ afterEach(() => {
 })
 
 async function openPane(payload: typeof existing | null = null) {
+  selected = payload
   vi.mocked(getSelectedDiagram).mockResolvedValue(payload)
   const hook = renderHook(usePaneEditor)
   await act(async () => {})
@@ -65,11 +90,10 @@ describe('code-only pane workflow', () => {
     )
   })
 
-  it('debounces typing and updates the pinned diagram, not a newly selected one', async () => {
+  it('debounces typing without reloading the same diagram after a live update', async () => {
     const { result } = await openPane(existing)
     await renderPending()
     expect(updateDiagramById).not.toHaveBeenCalled()
-    vi.mocked(getSelectedDiagram).mockResolvedValue(createDiagramPayload('flowchart LR\nOther', 'png'))
     act(() => result.current.changeSource('flowchart LR\nA-->C'))
     await act(async () => { await vi.advanceTimersByTimeAsync(300) })
     act(() => result.current.changeSource('flowchart LR\nA-->D'))
@@ -195,28 +219,119 @@ describe('code-only pane workflow', () => {
     expect(result.current.draft.source).not.toContain('Unsaved')
   })
 
-  it('loads another diagram only on an explicit Edit selected action', async () => {
+  it('automatically loads a newly selected diagram without a button press', async () => {
     const { result } = await openPane(existing)
     const other = createDiagramPayload('flowchart LR\nOther', 'png', 'neutral')
-    vi.mocked(getSelectedDiagram).mockResolvedValue(other)
-    await act(async () => { await result.current.loadSelected() })
+    act(() => selectInWord(other))
     expect(result.current.target).toEqual(other)
     expect(result.current.draft.source).toBe(other.source)
     expect(updateDiagramById).not.toHaveBeenCalled()
   })
 
-  it('does not lose typing while a selected-diagram lookup is in flight', async () => {
+  it('uses default code and enables Insert when no diagram is selected', async () => {
+    const { result } = await openPane(existing)
+    act(() => selectInWord(null))
+    expect(result.current.target).toBeNull()
+    expect(result.current.draft.source).toBe(DEFAULT_DIAGRAM)
+    expect(result.current.draft.theme).toBe('redux-color')
+    await renderPending()
+    expect(result.current.canInsert).toBe(true)
+  })
+
+  it('does not reset a new draft when moving between blank lines', async () => {
+    const { result } = await openPane()
+    act(() => result.current.changeSource('flowchart LR\nNewDraft'))
+    act(() => selectInWord(null))
+    expect(result.current.draft.source).toContain('NewDraft')
+    expect(result.current.pending).toBeNull()
+  })
+
+  it('can reselect the same picture after explicitly starting a new diagram', async () => {
+    const { result } = await openPane(existing)
+    act(() => result.current.newDiagram())
+    expect(result.current.target).toBeNull()
+    act(() => selectInWord(existing))
+    expect(result.current.target?.id).toBe(existing.id)
+    expect(result.current.draft.source).toBe(existing.source)
+  })
+
+  it('preserves typing and undo history for repeated selection notifications', async () => {
+    const { result } = await openPane(existing)
+    const history = result.current.historyKey
+    act(() => result.current.changeSource('flowchart LR\nKeepTheseEdits'))
+    act(() => selectInWord(existing, false))
+    expect(result.current.draft.source).toContain('KeepTheseEdits')
+    expect(result.current.historyKey).toBe(history)
+    expect(result.current.pending).toBeNull()
+  })
+
+  it('does not reset the pane when its own replacement clears document selection', async () => {
+    const { result } = await openPane(existing)
+    act(() => selectInWord(null, false))
+    expect(result.current.target?.id).toBe(existing.id)
+    expect(result.current.draft.source).toBe(existing.source)
+  })
+
+  it('preserves unsaved edits and confirms a selection-driven switch', async () => {
     const { result } = await openPane(existing)
     const other = createDiagramPayload('flowchart LR\nOther', 'png')
-    let finish: (value: typeof other) => void = () => { throw new Error('Lookup has not started') }
-    vi.mocked(getSelectedDiagram).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
-    act(() => { void result.current.loadSelected() })
     act(() => result.current.changeSource('flowchart LR\nKeepTheseEdits'))
-    await act(async () => { finish(other) })
+    act(() => selectInWord(other))
     expect(result.current.pending?.target).toEqual(other)
     expect(result.current.draft.source).toContain('KeepTheseEdits')
     act(() => result.current.keepEditing())
     expect(result.current.target?.id).toBe(existing.id)
+  })
+
+  it('uses the latest selection when confirming a pending switch', async () => {
+    const { result } = await openPane(existing)
+    act(() => result.current.changeSource('flowchart LR\nUnsaved'))
+    act(() => selectInWord(createDiagramPayload('flowchart LR\nOther', 'png')))
+    act(() => selectInWord(null))
+    expect(result.current.pending).toEqual({ target: null })
+    await renderPending()
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    act(() => result.current.discardAndSwitch())
+    expect(result.current.target).toBeNull()
+    expect(result.current.draft.source).toBe(DEFAULT_DIAGRAM)
+  })
+
+  it('cancels a pending switch when the user reselects the current diagram', async () => {
+    const { result } = await openPane(existing)
+    act(() => result.current.changeSource('flowchart LR\nKeepTheseEdits'))
+    act(() => selectInWord(null))
+    act(() => selectInWord(existing))
+    expect(result.current.pending).toBeNull()
+    expect(result.current.draft.source).toContain('KeepTheseEdits')
+  })
+
+  it('switches to the latest document selection after an in-flight write finishes', async () => {
+    const { result } = await openPane(existing)
+    let finish: (value: 'png') => void = () => { throw new Error('Write has not started') }
+    vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    act(() => result.current.changeSource('flowchart LR\nSavedBeforeSwitch'))
+    await renderPending()
+    const other = createDiagramPayload('flowchart LR\nOther', 'png')
+    act(() => selectInWord(other))
+    expect(result.current.target?.id).toBe(existing.id)
+    await act(async () => { finish('png') })
+    expect(result.current.target?.id).toBe(other.id)
+    expect(result.current.draft.source).toBe(other.source)
+    expect(updateDiagramById).toHaveBeenCalledOnce()
+  })
+
+  it('returns to Insert after a real deselection during an in-flight write', async () => {
+    const { result } = await openPane(existing)
+    let finish: (value: 'png') => void = () => { throw new Error('Write has not started') }
+    vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    act(() => result.current.changeSource('flowchart LR\nSaved'))
+    await renderPending()
+    act(() => selectInWord(null))
+    await act(async () => { finish('png') })
+    expect(result.current.target).toBeNull()
+    expect(result.current.draft.source).toBe(DEFAULT_DIAGRAM)
+    await renderPending()
+    expect(result.current.canInsert).toBe(true)
   })
 
   it('does not overwrite a selected diagram when inserting a new draft', async () => {
@@ -234,5 +349,6 @@ describe('code-only pane workflow', () => {
     unmount()
     await renderPending()
     expect(updateDiagramById).not.toHaveBeenCalled()
+    expect(stopWatching).toHaveBeenCalledOnce()
   })
 })
