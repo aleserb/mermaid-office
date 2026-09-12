@@ -84,7 +84,10 @@ export function normalizeSvgDimensions(svg: string): {
   }
 }
 
-export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
+export async function rasterizeSvg(
+  svg: string,
+  size?: DiagramSize,
+): Promise<RasterizedDiagram> {
   const normalized = normalizeSvgDimensions(svg)
   const scale = Math.min(2, 4096 / Math.max(normalized.width, normalized.height))
   const width = Math.max(1, Math.round(normalized.width * scale))
@@ -123,9 +126,17 @@ export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
     const bottom = Math.min(height, bounds.top + bounds.height + padding)
     const croppedWidth = right - left
     const croppedHeight = bottom - top
+    const targetWidth = size
+      ? Math.round(DIAGRAM_WIDTHS[size] * (96 / 72) * 2)
+      : croppedWidth
+    const outputScale = Math.min(
+      targetWidth / croppedWidth,
+      4096 / croppedWidth,
+      4096 / croppedHeight,
+    )
     const output = window.document.createElement('canvas')
-    output.width = croppedWidth
-    output.height = croppedHeight
+    output.width = Math.max(1, Math.round(croppedWidth * outputScale))
+    output.height = Math.max(1, Math.round(croppedHeight * outputScale))
     const outputContext = output.getContext('2d')
     if (!outputContext) {
       throw new Error('This browser cannot crop the PNG fallback.')
@@ -138,8 +149,8 @@ export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
       croppedHeight,
       0,
       0,
-      croppedWidth,
-      croppedHeight,
+      output.width,
+      output.height,
     )
 
     return {
@@ -234,7 +245,7 @@ export async function updateDiagram(
     size,
     format: 'png',
   }
-  const raster = renderedRaster ?? (await rasterizeSvg(svg))
+  const raster = renderedRaster ?? (await rasterizeSvg(svg, size))
 
   await Word.run(async (context) => {
     const selection = context.document.getSelection()
@@ -347,7 +358,7 @@ export async function insertDiagram(
   }
 
   const payload = createDiagramPayload(source, 'png', theme, size)
-  const raster = renderedRaster ?? (await rasterizeSvg(svg))
+  const raster = renderedRaster ?? (await rasterizeSvg(svg, size))
   const png = embedPayloadInPng(raster.base64, payload)
   await insertPngObject({ ...raster, base64: png }, payload)
   return 'png'

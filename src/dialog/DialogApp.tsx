@@ -100,7 +100,7 @@ export function DialogApp() {
 
     setSaving(true)
     try {
-      const raster = await rasterizeSvg(svg)
+      const raster = await rasterizeSvg(svg, size)
       sendToParent({ type: 'save', source, theme, size, svg, raster })
     } catch (saveError) {
       setError(normalizeMermaidError(saveError))
