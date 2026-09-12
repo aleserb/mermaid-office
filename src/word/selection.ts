@@ -6,6 +6,7 @@ import {
   type DiagramPayload,
 } from '../metadata/payload'
 import { readPayloadFromImage } from '../metadata/imageMetadata'
+import { configureDiagramContentControl, suppressDiagramPlaceholder } from './contentControls'
 
 function copyWithNewId(payload: DiagramPayload): DiagramPayload {
   return { ...payload, id: crypto.randomUUID() }
@@ -15,11 +16,7 @@ function configureRecoveredContentControl(
   contentControl: Word.ContentControl,
   payload: DiagramPayload,
 ) {
-  contentControl.tag = getContentControlTag(payload.id)
-  contentControl.title = 'Mermaid diagram'
-  contentControl.appearance = Word.ContentControlAppearance.hidden
-  contentControl.cannotDelete = false
-  contentControl.cannotEdit = false
+  configureDiagramContentControl(contentControl, payload)
   contentControl.select()
 }
 
@@ -45,11 +42,24 @@ export async function getSelectedDiagram(): Promise<DiagramPayload | null> {
     // Enter can extend a diagram's hidden control to include blank paragraphs.
     // Being inside that control is not the same as selecting its picture.
     if (selectedPicture.isNullObject) {
+      const enclosing = selection.parentContentControlOrNullObject
+      enclosing.load('tag')
+      await context.sync()
+      if (!enclosing.isNullObject && getDiagramIdFromTag(enclosing.tag)) {
+        const remainingPicture = enclosing.inlinePictures.getFirstOrNullObject()
+        await context.sync()
+        if (remainingPicture.isNullObject) {
+          // Unwrap only the orphaned Mermaid control, keeping any typed text.
+          // Retain its saved payload so Word Undo can restore the diagram.
+          enclosing.delete(true)
+          await context.sync()
+        }
+      }
       return null
     }
 
     let contentControl = selectedPicture.parentContentControlOrNullObject
-    contentControl.load('tag')
+    contentControl.load('tag,placeholderText')
     await context.sync()
 
     if (contentControl.isNullObject) {
@@ -72,6 +82,9 @@ export async function getSelectedDiagram(): Promise<DiagramPayload | null> {
     const id = getDiagramIdFromTag(contentControl.tag)
     if (!id) {
       return null
+    }
+    if (contentControl.placeholderText !== ' ') {
+      suppressDiagramPlaceholder(contentControl)
     }
 
     const setting = context.document.settings.getItemOrNullObject(getDocumentSettingKey(id))

@@ -1,4 +1,5 @@
 import { embedPayloadInPng, setPngPhysicalWidth } from '../metadata/pngMetadata'
+import { configureDiagramContentControl, suppressDiagramPlaceholder } from './contentControls'
 import {
   createDiagramPayload,
   getContentControlTag,
@@ -178,17 +179,6 @@ function configureDiagramPicture(picture: Word.InlinePicture) {
   picture.altTextDescription = 'Diagram created with Mermaid Office.'
 }
 
-function configureDiagramContentControl(
-  contentControl: Word.ContentControl,
-  payload: Pick<DiagramPayload, 'id'>,
-) {
-  contentControl.tag = getContentControlTag(payload.id)
-  contentControl.title = 'Mermaid diagram'
-  contentControl.appearance = Word.ContentControlAppearance.hidden
-  contentControl.cannotDelete = false
-  contentControl.cannotEdit = false
-}
-
 async function separateEnclosingDiagram(
   context: Word.RequestContext,
   selection: Word.Range = context.document.getSelection(),
@@ -340,6 +330,7 @@ export async function updateDiagram(
       throw new Error('The selected Mermaid diagram no longer contains a picture.')
     }
 
+    suppressDiagramPlaceholder(contentControl)
     const replacement = replaceDiagramPicture(context, existingPicture, raster, payload, applySize)
     replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
     replacement.altTextDescription =
@@ -433,6 +424,7 @@ export async function updateDiagramById(
     const picture = pictures.items[0]
     picture.load('altTextTitle,altTextDescription,width')
     await context.sync()
+    suppressDiagramPlaceholder(controls.items[0])
     replaceDiagramPicture(context, picture, raster, payload, applySize)
     await context.sync()
   })

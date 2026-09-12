@@ -37,6 +37,11 @@ When the task pane is open, selecting an inserted Mermaid diagram loads its
 stored source and theme into the editor automatically. Saving replaces the
 selected picture in place while preserving its displayed width and alternative
 text. Move the cursor away from the diagram to leave edit mode.
+Diagram wrappers use a blank placeholder, so deleting a picture does not leave
+Word's "Click or tap here to enter text" prompt, even with the add-in closed.
+Older diagrams receive this setting when selected or updated. With the pane open,
+placing the cursor in a leftover diagram wrapper removes the wrapper while
+preserving any surrounding text. Saved metadata is retained for Word Undo.
 
 When Word preserves the original PNG or SVG bytes during copy/paste, selecting
 the pasted diagram restores its editable Mermaid source from embedded metadata.

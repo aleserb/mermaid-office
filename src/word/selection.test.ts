@@ -20,7 +20,7 @@ function mockSelection(picture: object, parent: object = { isNullObject: true })
       sync: vi.fn().mockResolvedValue(undefined),
       document: {
         getSelection: () => ({
-          parentContentControlOrNullObject: parent,
+          parentContentControlOrNullObject: { load: vi.fn(), ...parent },
           inlinePictures: { getFirstOrNullObject: () => picture },
         }),
         settings,
@@ -36,11 +36,60 @@ describe('selected diagram detection', () => {
   it.each([true, false])('returns Insert mode without a picture, parent is null: %s', async (isNullObject) => {
     const { settings } = mockSelection(
       { isNullObject: true },
-      { isNullObject, tag: 'mermaid-office:v1:previous' },
+      {
+        isNullObject,
+        tag: 'mermaid-office:v1:previous',
+        inlinePictures: { getFirstOrNullObject: () => ({ isNullObject: false }) },
+      },
     )
     expect(await getSelectedDiagram()).toBeNull()
     expect(settings.getItemOrNullObject).not.toHaveBeenCalled()
     expect(readPayloadFromImage).not.toHaveBeenCalled()
+  })
+
+  it.each(['', 'Text typed after the deleted diagram'])(
+    'unwraps a selected orphaned Mermaid control while preserving its contents: %s',
+    async (text) => {
+      const remove = vi.fn()
+      const { settings } = mockSelection({ isNullObject: true }, {
+        isNullObject: false,
+        tag: 'mermaid-office:v1:deleted',
+        text,
+        delete: remove,
+        inlinePictures: { getFirstOrNullObject: () => ({ isNullObject: true }) },
+      })
+      expect(await getSelectedDiagram()).toBeNull()
+      expect(remove).toHaveBeenCalledExactlyOnceWith(true)
+      expect(settings.getItemOrNullObject).not.toHaveBeenCalled()
+      expect(settings.add).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['mermaid-office:v1:existing', 'another-addin'])(
+    'does not remove an enclosing control that still has a picture or belongs to another add-in: %s',
+    async (tag) => {
+      const remove = vi.fn()
+      mockSelection({ isNullObject: true }, {
+        isNullObject: false,
+        tag,
+        delete: remove,
+        inlinePictures: { getFirstOrNullObject: () => ({ isNullObject: false }) },
+      })
+      expect(await getSelectedDiagram()).toBeNull()
+      expect(remove).not.toHaveBeenCalled()
+    },
+  )
+
+  it('does not remove empty controls belonging to another add-in', async () => {
+    const remove = vi.fn()
+    mockSelection({ isNullObject: true }, {
+      isNullObject: false,
+      tag: 'another-addin',
+      delete: remove,
+      inlinePictures: { getFirstOrNullObject: () => ({ isNullObject: true }) },
+    })
+    expect(await getSelectedDiagram()).toBeNull()
+    expect(remove).not.toHaveBeenCalled()
   })
 
   it('uses the selected picture control, not an enclosing older diagram', async () => {
@@ -61,6 +110,7 @@ describe('selected diagram detection', () => {
     })
     contentControls.getByTag.mockReturnValue({ items: [control], load: vi.fn() })
     expect(await getSelectedDiagram()).toEqual(payload)
+    expect(control).toHaveProperty('placeholderText', ' ')
     expect(settings.getItemOrNullObject).toHaveBeenCalledWith(getDocumentSettingKey(payload.id))
   })
 
@@ -88,6 +138,7 @@ describe('selected diagram detection', () => {
     expect(recovered).toMatchObject({ source: payload.source, theme: payload.theme })
     expect(recovered?.id).not.toBe(payload.id)
     expect(recoveredControl.tag).toBe(getContentControlTag(recovered!.id))
+    expect(recoveredControl).toHaveProperty('placeholderText', ' ')
     expect(settings.add).toHaveBeenCalledOnce()
   })
 })

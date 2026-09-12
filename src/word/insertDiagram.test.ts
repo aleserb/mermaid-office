@@ -181,6 +181,10 @@ describe('Word diagram insertion', () => {
     )
 
     expect(insertInlinePictureFromBase64).toHaveBeenCalledTimes(2)
+    expect(contentControl).toHaveProperty('placeholderText', ' ')
+    if (enclosingKind === 'expanded') {
+      expect(isolated).toHaveProperty('placeholderText', ' ')
+    }
     expect(insertInlinePictureFromBase64).toHaveBeenNthCalledWith(
       1,
       expect.any(String),
@@ -311,6 +315,7 @@ describe('Word diagram insertion', () => {
       'Replace',
     )
     expect(contentControl.tag).toBe(`mermaid-office:v1:${existing.id}`)
+    expect(contentControl).toHaveProperty('placeholderText', ' ')
     expect(replacementPicture.width).toBe(324)
     expect(replacementPicture.height).toBeCloseTo(194.4, 2)
     expect(selectReplacement).toHaveBeenCalledOnce()
@@ -474,6 +479,7 @@ describe('Word diagram updates by saved ID', () => {
     const width = applySize ? 396 : 287
     expect(result).toBe('png')
     expect(mock.getByTag).toHaveBeenCalledWith(getContentControlTag(mock.existing.id))
+    expect(mock.control).toHaveProperty('placeholderText', ' ')
     expect(mock.insertPicture).toHaveBeenCalledExactlyOnceWith(
       setPngPhysicalWidth(embedPayloadInPng(transparentPixel, payload), width), 'Replace',
     )
