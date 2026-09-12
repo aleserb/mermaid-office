@@ -28,6 +28,10 @@ canvas backing stores are released immediately after encoding.
 Cropping, displayed Word size, and embedded source metadata are preserved.
 Pictures are inserted and updated as an inline Word drawing with explicit frame
 and image dimensions, keeping higher-resolution pixels inside the picture frame.
+Live edits use Word's direct picture API instead of repeated OOXML imports, which
+can display Word's blocking "Waiting..." dialog. The replacement is reacquired
+in a fresh Word request before sizing, and its identity and saved source are
+rechecked before committing the update. Initial insertion still uses OOXML.
 PNG remains a raster format, so extreme zoom can still reveal pixels. Existing
 images gain the higher resolution when a valid edit regenerates them.
 
