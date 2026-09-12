@@ -75,6 +75,54 @@ async function renderPending() {
 }
 
 describe('code-only pane workflow', () => {
+  it('pins settings to the original diagram and applies before following a new selection', async () => {
+    const { result } = await openPane(existing)
+    await renderPending()
+    act(() => result.current.beginSettings())
+    const other = { ...existing, id: 'other-diagram', theme: 'neutral' as const }
+    act(() => selectInWord(other))
+    expect(isPaused?.()).toBe(true)
+    expect(result.current.target?.id).toBe(existing.id)
+    expect(result.current.loadingSelection).toBe(false)
+    const settings = { ...DEFAULT_DIAGRAM_SETTINGS, imageQuality: 'high' as const }
+    act(() => result.current.applySettings('dark', settings))
+    await renderPending()
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    await act(async () => { result.current.endSettings(true) })
+    await renderPending()
+    expect(updateDiagramById).toHaveBeenCalledExactlyOnceWith(
+      expect.any(String), existing, existing.source, 'dark', 'medium', false, undefined, settings,
+    )
+    expect(result.current.target?.id).toBe(other.id)
+    expect(result.current.settingsActive).toBe(false)
+    expect(isPaused?.()).toBe(false)
+  })
+
+  it('resumes selection on settings Cancel without applying to either diagram', async () => {
+    const { result } = await openPane(existing)
+    act(() => result.current.beginSettings())
+    const other = { ...existing, id: 'other-diagram' }
+    act(() => selectInWord(other))
+    act(() => result.current.endSettings(false))
+    expect(result.current.target?.id).toBe(other.id)
+    await renderPending()
+    expect(updateDiagramById).not.toHaveBeenCalled()
+  })
+
+  it('does not remain pinned when applying unchanged settings after a failed write', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { result } = await openPane(existing)
+    vi.mocked(updateDiagramById).mockRejectedValueOnce(new Error('Word write failed'))
+    act(() => result.current.changeSource('flowchart LR\nChanged'))
+    await renderPending()
+    expect(result.current.canRetry).toBe(true)
+    act(() => result.current.beginSettings())
+    act(() => result.current.applySettings(existing.theme, DEFAULT_DIAGRAM_SETTINGS))
+    await act(async () => { result.current.endSettings(true) })
+    expect(isPaused?.()).toBe(false)
+    expect(result.current.canRetry).toBe(true)
+  })
+
   it('requires explicit insertion and keeps the returned diagram as its update target', async () => {
     const { result } = await openPane()
     await renderPending()

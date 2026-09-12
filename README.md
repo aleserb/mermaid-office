@@ -93,10 +93,19 @@ the diagram's colors and exported PNG.
 The code editor always uses the platform's System UI font at 12 px.
 This changes only the editor display, not the diagram output.
 
-The gear button opens a settings dialog inside the task pane, not a separate
-Office dialog window. Theme is in this dialog rather than above the code editor.
+The gear button opens an Office-hosted settings window outside the task pane.
+In Word on the web it floats over the Word workspace; desktop Word uses a separate,
+centered window. The code editor stays in the pane. Browser-only development, or
+hosts without the Office Dialog API, retain the in-pane settings form.
+Theme is in this window rather than above the code editor.
 Use Apply to change all selected settings together, or Cancel/Escape to discard
-the dialog changes. Selecting another diagram closes the settings dialog.
+the dialog changes. The window is non-modal, so the Word document remains
+interactive. The pane is temporarily locked to the original diagram: Apply updates
+that diagram before following a new Word selection. Cancel follows the new
+selection without applying settings. Deleted or externally changed diagrams
+are rejected by the existing update guards.
+Office-hosted settings require DialogApi 1.2. Loading, popup permission, and messaging
+errors are shown in the pane instead of silently reverting to a narrow dialog.
 
 Settings offers Mermaid's Default, Neutral, Dark, Forest, Neo, Redux Color,
 and monochrome Redux render themes, including their dark variants. The selected

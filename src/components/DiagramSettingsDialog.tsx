@@ -40,7 +40,7 @@ export function DiagramSettingsDialog({ open = true, trigger, onOpen, ...props }
     </DialogSurface>
   )
   const children: ReactElement | [ReactElement, ReactElement] = trigger
-    ? [<DialogTrigger key="trigger" disableButtonEnhancement>{trigger}</DialogTrigger>, surface]
+    ? [<DialogTrigger key="trigger" action="open" disableButtonEnhancement>{trigger}</DialogTrigger>, surface]
     : surface
   // Keep Dialog mounted so Fluent restores background accessibility on close.
   return (

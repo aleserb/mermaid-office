@@ -6,6 +6,7 @@ import { PaneApp } from './PaneApp'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
 import { createDiagramPayload } from '../metadata/payload'
 import { DEFAULT_DIAGRAM_SETTINGS } from '../metadata/diagramSettings'
+import * as settingsWindows from '../settings/openSettingsWindow'
 import { watchSelectedDiagram } from '../word/selection'
 import { renderMermaid } from '../mermaid/render'
 
@@ -256,4 +257,26 @@ it.each(['render', 'word'])('shows %s errors below the code editor and above the
   expect(container.querySelector('.editor-shell')?.nextElementSibling).toBe(bar)
   expect(bar?.nextElementSibling).toBe(screen.getByRole('contentinfo'))
   expect(screen.getByRole('button', { name: 'Insert' })).toBeDisabled()
+})
+it('opens Office-hosted settings without a pane modal and unlocks after an opening error', async () => {
+  vi.stubGlobal('Office', {
+    onReady: vi.fn().mockResolvedValue({}),
+    context: { document: {}, ui: { displayDialogAsync: vi.fn() } },
+  })
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+  const open = vi.spyOn(settingsWindows, 'openSettingsWindow').mockReturnValue({ dispose: vi.fn() })
+  const user = userEvent.setup()
+  const { container } = render(<PaneApp />)
+  await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
+  await user.click(screen.getByRole('button', { name: 'Diagram settings' }))
+  expect(open).toHaveBeenCalledOnce()
+  expect(open.mock.calls[0][0]).toMatchObject({ settings: DEFAULT_DIAGRAM_SETTINGS, diagramKind: 'flowchart' })
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  expect(container.querySelector('main')).toHaveAttribute('inert')
+  act(() => {
+    open.mock.calls[0][1].onError('Settings popup was blocked.')
+    open.mock.calls[0][1].onClose()
+  })
+  expect(container.querySelector('main')).not.toHaveAttribute('inert')
+  expect(screen.getByText('Settings popup was blocked.')).toBeInTheDocument()
 })

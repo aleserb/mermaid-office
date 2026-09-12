@@ -51,6 +51,9 @@ export function usePaneEditor() {
   const [failedWrite, setFailedWrite] = useState<RenderedDraft | null>(null)
   const [pending, setPending] = useState<{ target: DiagramPayload | null } | null>(null)
   const [historyKey, setHistoryKey] = useState(0)
+  const [settingsActive, setSettingsActive] = useState(false)
+  const settingsPinned = useRef(false)
+  const resumeAfterSettingsWrite = useRef(false)
   const mounted = useRef(false)
   const busy = useRef(false)
   const draftRef = useRef(draft)
@@ -87,6 +90,7 @@ export function usePaneEditor() {
   }, [activate])
 
   const receiveSelection = useCallback((payload: DiagramPayload | null) => {
+    if (settingsPinned.current) return
     const fromDocument = selectionFromDocument.current
     selectionFromDocument.current = false
     setLoadingSelection(false)
@@ -126,14 +130,15 @@ export function usePaneEditor() {
           (error) => {
             if (!active) return
             setWordError(error.message)
-            setLoadingSelection(true)
+            if (!settingsPinned.current) setLoadingSelection(true)
             setReady(true)
           },
           {
-            isPaused: () => busy.current,
+            isPaused: () => busy.current || settingsPinned.current,
             onSelectionChange: () => {
               if (!active) return
               selectionFromDocument.current ||= !document.hasFocus()
+              if (settingsPinned.current) return
               setLoadingSelection(true)
             },
           },
@@ -173,7 +178,7 @@ export function usePaneEditor() {
 
   useEffect(() => {
     if (
-      !ready || !target || !rendered || writing || busy.current || loadingSelection || pending ||
+      !ready || !target || !rendered || writing || busy.current || settingsActive || loadingSelection || pending ||
       !sameDraft(rendered.draft, draft) || sameDraft(draft, target) || failedWrite === rendered
     ) {
       return
@@ -205,10 +210,39 @@ export function usePaneEditor() {
       busy.current = false
       if (mounted.current) {
         setWriting(false)
+        if (resumeAfterSettingsWrite.current) {
+          resumeAfterSettingsWrite.current = false
+          settingsPinned.current = false
+        }
         watcher.current?.refresh()
       }
     })
-  }, [draft, failedWrite, loadingSelection, pending, ready, rendered, target, writing])
+  }, [draft, failedWrite, loadingSelection, pending, ready, rendered, settingsActive, target, writing])
+
+  useEffect(() => {
+    if (!settingsActive && resumeAfterSettingsWrite.current && !writing &&
+      (diagnostic || (failedWrite && failedWrite === rendered) || !target || sameDraft(draft, target))) {
+      resumeAfterSettingsWrite.current = false
+      settingsPinned.current = false
+      watcher.current?.refresh()
+    }
+  }, [diagnostic, draft, failedWrite, rendered, settingsActive, target, writing])
+
+  const beginSettings = () => {
+    settingsPinned.current = true
+    resumeAfterSettingsWrite.current = false
+    setSettingsActive(true)
+  }
+
+  const endSettings = (applied: boolean) => {
+    setSettingsActive(false)
+    if (applied && targetRef.current && !sameDraft(draftRef.current, targetRef.current)) {
+      resumeAfterSettingsWrite.current = true
+    } else {
+      settingsPinned.current = false
+      watcher.current?.refresh()
+    }
+  }
 
   const changeDraft = (next: Draft) => {
     if (sameDraft(next, draftRef.current)) return
@@ -264,13 +298,13 @@ export function usePaneEditor() {
   }
 
   return {
-    draft, target, ready, writing, loadingSelection, diagnostic, wordError, pending, historyKey,
+    draft, target, ready, writing, loadingSelection, diagnostic, wordError, pending, historyKey, settingsActive,
     dirty: !sameDraft(draft, target ?? baseline),
     rendering: !rendered || !sameDraft(rendered.draft, draft),
     canInsert: ready && !target && Boolean(rendered && sameDraft(rendered.draft, draft)) &&
-      !diagnostic && !writing && !loadingSelection,
+      !diagnostic && !writing && !loadingSelection && !settingsActive,
     canRetry: Boolean(failedWrite && rendered === failedWrite),
-    changeSource, changeTheme, applySettings, insert,
+    changeSource, changeTheme, applySettings, insert, beginSettings, endSettings,
     diagramKind: detectDiagramKind(draft.source),
     keepEditing: () => setPending(null),
     discardAndSwitch: () => { if (pending && !busy.current) activate(pending.target) },

@@ -22,3 +22,13 @@ it.each(['/', '/?view=pane'])('opens the code-only pane at %s', async (url) => {
     <StrictMode><PaneApp /></StrictMode>,
   )
 })
+
+it('opens only settings in the Office dialog route', async () => {
+  window.history.replaceState(null, '', '/?view=settings&session=test')
+  const container = document.createElement('div')
+  container.id = 'root'
+  document.body.append(container)
+  const { SettingsWindow } = await import('./settings/SettingsWindow')
+  await import('./main')
+  expect(root.render).toHaveBeenCalledExactlyOnceWith(<StrictMode><SettingsWindow /></StrictMode>)
+})

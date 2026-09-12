@@ -18,6 +18,7 @@ import { MermaidEditor } from '../components/MermaidEditor'
 import { SyntaxHelpLink } from '../components/SyntaxHelpLink'
 import { DiagramSettingsDialog } from '../components/DiagramSettingsDialog'
 import { usePaneEditor } from './usePaneEditor'
+import { openSettingsWindow } from '../settings/openSettingsWindow'
 import './pane.css'
 
 export function PaneApp() {
@@ -25,6 +26,9 @@ export function PaneApp() {
   const settingsButton = useRef<HTMLButtonElement>(null)
   const restoreSettingsFocus = useRef(false)
   const [settingsHistoryKey, setSettingsHistoryKey] = useState<number | null>(null)
+  const [settingsError, setSettingsError] = useState('')
+  const settingsWindow = useRef<ReturnType<typeof openSettingsWindow> | null>(null)
+  useEffect(() => () => settingsWindow.current?.dispose(), [])
   if (settingsHistoryKey !== null && (settingsHistoryKey !== editor.historyKey || editor.pending)) {
     setSettingsHistoryKey(null)
   }
@@ -38,7 +42,29 @@ export function PaneApp() {
     restoreSettingsFocus.current = true
     setSettingsHistoryKey(null)
   }
-  const busy = !editor.ready || editor.writing || editor.loadingSelection
+  const busy = !editor.ready || editor.writing || editor.loadingSelection || editor.settingsActive
+  const openSettings = () => {
+    setSettingsError('')
+    if (typeof Office === 'undefined' || !Office.context?.document || !Office.context.ui?.displayDialogAsync) {
+      setSettingsHistoryKey(editor.historyKey)
+      return
+    }
+    editor.beginSettings()
+    let applied = false
+    settingsWindow.current = openSettingsWindow({
+      theme: editor.draft.theme, settings: editor.draft.settings, diagramKind: editor.diagramKind,
+    }, {
+      onApply: (theme, settings) => {
+        editor.applySettings(theme, settings)
+        applied = true
+      },
+      onClose: () => {
+        settingsWindow.current = null
+        editor.endSettings(applied)
+      },
+      onError: setSettingsError,
+    })
+  }
   const status = editor.writing
     ? 'Writing diagram to Word...'
     : editor.target && editor.dirty
@@ -47,7 +73,7 @@ export function PaneApp() {
 
   return (
     <FluentProvider theme={webLightTheme} style={{ colorScheme: 'light' }}>
-      <main className="pane-shell">
+      <main className="pane-shell" inert={editor.settingsActive}>
         <header className="pane-header">
           <DiagramSettingsDialog
             open={settingsHistoryKey === editor.historyKey && !editor.pending}
@@ -55,7 +81,7 @@ export function PaneApp() {
             settings={editor.draft.settings}
             diagramKind={editor.diagramKind}
             disabled={busy || !!editor.pending}
-            onOpen={() => setSettingsHistoryKey(editor.historyKey)}
+            onOpen={openSettings}
             onCancel={closeSettings}
             onApply={(theme, settings) => {
               if (busy || editor.pending || settingsHistoryKey !== editor.historyKey) return
@@ -79,6 +105,7 @@ export function PaneApp() {
         </header>
 
         {status && <Caption1 role="status">{status}</Caption1>}
+        {editor.settingsActive && <Caption1 role="status">Settings window is open.</Caption1>}
         {editor.ready ? (
           <MermaidEditor
             value={editor.draft.source}
@@ -88,6 +115,9 @@ export function PaneApp() {
           />
         ) : <Spinner label="Loading selected diagram" />}
 
+        {settingsError && (
+          <MessageBar intent="error"><MessageBarBody>{settingsError}</MessageBarBody></MessageBar>
+        )}
         {editor.wordError && (
           <MessageBar intent="error">
             <MessageBarBody>{editor.wordError}</MessageBarBody>
