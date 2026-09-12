@@ -6,7 +6,7 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>9e2ab43d-705f-4f59-b861-a2b35eca6d41</Id>
-  <Version>1.0.6.0</Version>
+  <Version>1.0.7.0</Version>
   <ProviderName>aleserb</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Mermaid Office"/>
@@ -92,7 +92,7 @@
       <bt:Urls>
         <bt:Url
           id="MermaidOffice.Commands.Url"
-          DefaultValue="https://aleserb.github.io/mermaid-office/commands.html?v=1.0.6"/>
+          DefaultValue="https://aleserb.github.io/mermaid-office/commands.html?v=1.0.7"/>
         <bt:Url
           id="MermaidOffice.Taskpane.Url"
           DefaultValue="https://aleserb.github.io/mermaid-office/"/>

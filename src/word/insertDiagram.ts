@@ -282,6 +282,9 @@ export async function updateDiagram(
         }
     const insertionPoint = contentControl.getRange(Word.RangeLocation.before)
     insertionPoint.track()
+    contentControl.delete(false)
+    await context.sync()
+
     const replacement = insertionPoint.insertInlinePictureFromBase64(
       png,
       Word.InsertLocation.after,
@@ -292,10 +295,9 @@ export async function updateDiagram(
     replacement.altTextDescription =
       existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
     await context.sync()
-
     const replacementControl = replacement.insertContentControl()
     configureDiagramContentControl(replacementControl, payload)
-    contentControl.delete(false)
+    configureDiagramContentControl(replacementControl, payload)
     context.document.settings.add(
       getDocumentSettingKey(payload.id),
       JSON.stringify(payload),

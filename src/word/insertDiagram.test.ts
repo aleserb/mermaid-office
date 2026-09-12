@@ -217,15 +217,15 @@ describe('Word diagram insertion', () => {
 
     expect(getRange).toHaveBeenCalledWith('Before')
     expect(track).toHaveBeenCalledOnce()
+    expect(contentControl.delete).toHaveBeenCalledWith(false)
     expect(insertInlinePictureFromBase64).toHaveBeenCalledWith(
       expect.any(String),
       'After',
     )
-    expect(replacementPicture.insertContentControl).toHaveBeenCalledOnce()
-    expect(contentControl.delete).toHaveBeenCalledWith(false)
     expect(
-      replacementPicture.insertContentControl.mock.invocationCallOrder[0],
-    ).toBeLessThan(contentControl.delete.mock.invocationCallOrder[0])
+      contentControl.delete.mock.invocationCallOrder[0],
+    ).toBeLessThan(insertInlinePictureFromBase64.mock.invocationCallOrder[0])
+    expect(replacementPicture.insertContentControl).toHaveBeenCalledOnce()
     expect(replacementControl.tag).toBe(`mermaid-office:v1:${existing.id}`)
     expect(replacementControl.select).toHaveBeenCalledOnce()
     expect(untrack).toHaveBeenCalledOnce()
