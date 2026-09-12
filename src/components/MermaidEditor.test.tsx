@@ -1,12 +1,54 @@
 import { cleanup, render } from '@testing-library/react'
 import { undo } from '@codemirror/commands'
-import { EditorView } from '@codemirror/view'
+import { EditorView, keymap } from '@codemirror/view'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MermaidEditor } from './MermaidEditor'
 
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+})
+
+it('highlights the active line and its number as the cursor moves', () => {
+  const onChange = vi.fn()
+  const { container, rerender } = render(
+    <MermaidEditor value={'flowchart LR\nA-->B'} onChange={onChange} />,
+  )
+  const element = container.querySelector<HTMLElement>('.cm-editor')
+  if (!element) throw new Error('Code editor was not rendered.')
+  const editor = EditorView.findFromDOM(element)
+  if (!editor) throw new Error('CodeMirror view was not found.')
+
+  expect(container.querySelector('.cm-activeLine')).toHaveTextContent('flowchart LR')
+  expect(container.querySelector('.cm-activeLineGutter')).toHaveTextContent('1')
+  editor.dispatch({ selection: { anchor: editor.state.doc.line(2).from } })
+  expect(container.querySelectorAll('.cm-activeLine')).toHaveLength(1)
+  expect(container.querySelector('.cm-activeLine')).toHaveTextContent('A-->B')
+  expect(container.querySelector('.cm-activeLineGutter')).toHaveTextContent('2')
+  expect(onChange).not.toHaveBeenCalled()
+
+  rerender(<MermaidEditor value="sequenceDiagram" historyKey="another-diagram" onChange={onChange} />)
+  expect(container.querySelector('.cm-activeLine')).toHaveTextContent('sequenceDiagram')
+  expect(container.querySelector('.cm-activeLineGutter')).toHaveTextContent('1')
+})
+
+it('does not register editor search shortcuts or open a search and replace panel', () => {
+  const { container } = render(<MermaidEditor value="flowchart LR" onChange={vi.fn()} />)
+  const element = container.querySelector<HTMLElement>('.cm-editor')
+  if (!element) throw new Error('Code editor was not rendered.')
+  const editor = EditorView.findFromDOM(element)
+  if (!editor) throw new Error('CodeMirror view was not found.')
+  const bindings = editor.state.facet(keymap).flat()
+  for (const key of ['Mod-f', 'F3', 'Mod-g', 'Mod-Shift-l', 'Mod-Alt-g', 'Mod-d']) {
+    expect(bindings.some((binding) => binding.key === key)).toBe(false)
+  }
+  for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
+    editor.contentDOM.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'f', code: 'KeyF', bubbles: true, cancelable: true, ...modifiers,
+    }))
+  }
+  expect(container.querySelector('.cm-search')).toBeNull()
+  expect(container.querySelector('.cm-panel')).toBeNull()
 })
 
 it('uses System UI at 12px and preserves editor state, selection, and undo history', () => {

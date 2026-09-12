@@ -55,6 +55,8 @@ and prevent insertion or live updates until the source is valid.
 The source editor includes Mermaid-aware syntax highlighting and autocomplete,
 common diagram snippets, automatic bracket and quote closing, standard editor
 keyboard shortcuts, and a link to the Mermaid syntax reference.
+The active line and its line number are highlighted. The editor's built-in
+search and replace panel and its shortcuts are disabled.
 In sequence diagrams, autocomplete also suggests participant and actor IDs from
 declarations and existing messages, with declared aliases shown as descriptions.
 Suggestions are available for message senders and recipients, note references,

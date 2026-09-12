@@ -11,9 +11,14 @@ import {
   indentWithTab,
 } from '@codemirror/commands'
 import { EditorState } from '@codemirror/state'
-import { EditorView, keymap, lineNumbers } from '@codemirror/view'
+import {
+  EditorView,
+  highlightActiveLine,
+  highlightActiveLineGutter,
+  keymap,
+  lineNumbers,
+} from '@codemirror/view'
 import { lintGutter, setDiagnostics } from '@codemirror/lint'
-import { search, searchKeymap } from '@codemirror/search'
 import { useEffect, useRef } from 'react'
 import type { MermaidDiagnostic } from '../mermaid/diagnostics'
 import { createMermaidDiagnostic } from './editorDiagnostics'
@@ -33,10 +38,11 @@ function createEditorState(document: string, onChange: (value: string) => void) 
     doc: document,
     extensions: [
       lineNumbers(),
+      highlightActiveLine(),
+      highlightActiveLineGutter(),
       lintGutter(),
       mermaidLanguage,
       history(),
-      search({ top: true }),
       closeBrackets(),
       autocompletion({ override: [mermaidCompletionSource] }),
       keymap.of([
@@ -45,7 +51,6 @@ function createEditorState(document: string, onChange: (value: string) => void) 
         ...completionKeymap,
         ...defaultKeymap,
         ...historyKeymap,
-        ...searchKeymap,
       ]),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({
