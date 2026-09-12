@@ -29,6 +29,11 @@ export function SplitWorkspace({
     if (!dragging.current || !containerRef.current) {
       return
     }
+    if (event.pointerType === 'mouse' && (event.buttons & 1) === 0) {
+      stopResizing(event)
+      return
+    }
+
     const bounds = containerRef.current.getBoundingClientRect()
     const percentage = ((event.clientX - bounds.left) / bounds.width) * 100
     setLeftWidth(Math.min(75, Math.max(25, percentage)))
@@ -70,12 +75,19 @@ export function SplitWorkspace({
         tabIndex={0}
         onKeyDown={handleSeparatorKey}
         onPointerDown={(event) => {
+          if (event.button !== 0) {
+            return
+          }
+          event.preventDefault()
           dragging.current = true
           event.currentTarget.setPointerCapture(event.pointerId)
         }}
         onPointerMove={resizeFromPointer}
         onPointerUp={stopResizing}
         onPointerCancel={stopResizing}
+        onLostPointerCapture={() => {
+          dragging.current = false
+        }}
       />
       {right}
     </section>
