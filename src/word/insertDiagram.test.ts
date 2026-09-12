@@ -10,6 +10,7 @@ import {
   updateDiagramById,
 } from './insertDiagram'
 import { createDiagramPayload, getContentControlTag, getDocumentSettingKey } from '../metadata/payload'
+import { DEFAULT_DIAGRAM_SETTINGS } from '../metadata/diagramSettings'
 import { embedPayloadInPng, getPngDimensions, readPayloadFromPng, setPngPhysicalWidth } from '../metadata/pngMetadata'
 
 vi.mock('../metadata/pngMetadata', async (importOriginal) => ({
@@ -463,13 +464,16 @@ describe('Word diagram insertion', () => {
         InsertLocation: { replace: 'Replace' },
         ContentControlAppearance: { hidden: 'Hidden' },
       })
-      const result = await insert('<svg/>', 'flowchart LR\nA', undefined, undefined, {
-        base64: transparentPixel, width: 100, height: 50,
-      })
+      const raster = { base64: transparentPixel, width: 100, height: 50 }
+      const settings = { ...DEFAULT_DIAGRAM_SETTINGS, look: 'handDrawn' as const, imageQuality: 'high' as const }
+      const result = insert === insertDiagramWithPayload
+        ? await insertDiagramWithPayload('<svg/>', 'flowchart LR\nA', undefined, undefined, raster, {}, settings)
+        : await insertDiagram('<svg/>', 'flowchart LR\nA', undefined, undefined, raster, settings)
       const picture = readPictureOoxml(insertPicture.mock.calls[0][0])
       const payload = readPayloadFromPng(picture.base64)
       expect(payload).toMatchObject({
         source: 'flowchart LR\nA', format: 'png', theme: 'default', size: 'medium',
+        settings,
       })
       expect(result).toEqual(insert === insertDiagramWithPayload ? payload : 'png')
       expect(control.tag).toBe(getContentControlTag(payload!.id))
@@ -589,7 +593,8 @@ describe('Word diagram updates by saved ID', () => {
     { update: updateDiagramById, applySize: true },
     { update: updateDiagram, applySize: false },
     { update: updateDiagram, applySize: true },
-  ])('$update rasterizes for the actual frame (applySize=$applySize)', async ({ update, applySize }) => {
+  ].flatMap(test => (['auto', 'standard', 'high'] as const).map(quality => ({ ...test, quality }))))(
+    '$update rasterizes for the actual frame (applySize=$applySize, quality=$quality)', async ({ update, applySize, quality }) => {
     const mock = mockSavedDiagram()
     if (update === updateDiagram) {
       const control = {
@@ -632,10 +637,11 @@ describe('Word diagram updates by saved ID', () => {
     await update(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>',
       mock.existing, 'flowchart LR\nNew', undefined, 'small', applySize,
+      undefined, { ...DEFAULT_DIAGRAM_SETTINGS, imageQuality: quality },
     )
 
     const width = applySize ? 216 : mock.picture.width
-    const pixelWidth = width * (96 / 72) * 2
+    const pixelWidth = width * (96 / 72) * (quality === 'high' ? 8 : 2)
     expect(drawImage).toHaveBeenCalledExactlyOnceWith(
       expect.any(VectorImage), 0, 0, 100, 50, 0, 0,
       Math.floor(pixelWidth), Math.floor(pixelWidth / 2),
@@ -644,6 +650,7 @@ describe('Word diagram updates by saved ID', () => {
     expect(replacement).toMatchObject({ width, height: width / 2 })
     expect(readPayloadFromPng(replacement.base64)).toMatchObject({
       id: mock.existing.id, source: 'flowchart LR\nNew', size: 'small',
+      settings: { ...DEFAULT_DIAGRAM_SETTINGS, imageQuality: quality },
     })
   })
 
@@ -685,6 +692,7 @@ describe('Word diagram updates by saved ID', () => {
     ['changed source', 'changed in another editor'],
     ['changed theme', 'changed in another editor'],
     ['changed size', 'changed in another editor'],
+    ['changed settings', 'changed in another editor'],
     ['invalid metadata', 'not valid JSON'],
   ])('rejects %s without writes', async (scenario, message) => {
     const mock = mockSavedDiagram()
@@ -695,6 +703,9 @@ describe('Word diagram updates by saved ID', () => {
     if (scenario === 'changed source') mock.setting.value = JSON.stringify({ ...mock.existing, source: 'flowchart LR\nZ' })
     if (scenario === 'changed theme') mock.setting.value = JSON.stringify({ ...mock.existing, theme: 'dark' })
     if (scenario === 'changed size') mock.setting.value = JSON.stringify({ ...mock.existing, size: 'small' })
+    if (scenario === 'changed settings') mock.setting.value = JSON.stringify({
+      ...mock.existing, settings: { ...DEFAULT_DIAGRAM_SETTINGS, fontSize: 24 },
+    })
     if (scenario === 'invalid metadata') mock.setting.value = '{'
     await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster))
       .rejects.toThrow(message)

@@ -7,6 +7,25 @@ afterEach(() => {
 })
 
 describe('adaptive raster sizing', () => {
+  it('offers smaller Standard and higher-detail High exports without changing the logical frame', () => {
+    const width = 1853.84765625
+    const height = 3236.24267578125
+    expect(getRasterDimensions(width, height, 'medium', 'standard')).toEqual({ width: 864, height: 1508 })
+    expect(getRasterDimensions(width, height, 'medium', 'auto')).toEqual({ width: 1550, height: 2705 })
+    expect(getRasterDimensions(width, height, 'medium', 'high')).toEqual({ width: 4384, height: 7653 })
+  })
+
+  it.each(['auto', 'standard', 'high'] as const)('bounds resource use at %s quality', quality => {
+    const limit = quality === 'high' ? { dimension: 8192, pixels: 32 * 1024 * 1024 }
+      : { dimension: 4096, pixels: 4 * 1024 * 1024 }
+    for (const [width, height] of [[10000, 10000], [10000, 1], [1, 10000]]) {
+      const result = getRasterDimensions(width, height, 468, quality)
+      expect(result.width).toBeLessThanOrEqual(limit.dimension)
+      expect(result.height).toBeLessThanOrEqual(limit.dimension)
+      expect(result.width * result.height).toBeLessThanOrEqual(limit.pixels)
+    }
+  })
+
   it('targets normal viewing at 2x screen density for small diagrams', () => {
     expect(getRasterDimensions(100, 50, 'medium')).toEqual({ width: 864, height: 432 })
     expect(getRasterDimensions(100, 50, 'page-width')).toEqual({ width: 1248, height: 624 })
@@ -67,10 +86,11 @@ const rasterCases = [
   { label: 'full', left: 0, top: 0, right: 200, bottom: 100, x: 0, y: 0, width: 100, height: 50 },
   { label: 'cropped', left: 20, top: 10, right: 180, bottom: 90, x: 6, y: 1, width: 88, height: 48 },
 ].flatMap(bounds => ['success', 'unsupported', 'empty', 'error'].flatMap(encoding =>
-  (['medium', 216] as const).map(size => ({ ...bounds, encoding, size })),
+  (['medium', 216] as const).flatMap(size =>
+    (['auto', 'standard', 'high'] as const).map(quality => ({ ...bounds, encoding, size, quality }))),
 ))
 
-it.each(rasterCases)('renders $label SVG bounds at $size and releases both canvases on $encoding', async (bounds) => {
+it.each(rasterCases)('renders $label SVG bounds at $size/$quality and releases both canvases on $encoding', async (bounds) => {
   const { encoding } = bounds
   const pixels = new Uint8ClampedArray(200 * 100 * 4)
   for (let y = bounds.top; y < bounds.bottom; y += 1) {
@@ -105,8 +125,8 @@ it.each(rasterCases)('renders $label SVG bounds at $size and releases both canva
   const revokeObjectURL = vi.fn()
   vi.stubGlobal('URL', { createObjectURL: () => 'blob:diagram', revokeObjectURL })
 
-  const result = rasterizeSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>', bounds.size)
-  const dimensions = getRasterDimensions(bounds.width, bounds.height, bounds.size)
+  const result = rasterizeSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>', bounds.size, bounds.quality)
+  const dimensions = getRasterDimensions(bounds.width, bounds.height, bounds.size, bounds.quality)
   if (encoding === 'success') {
     await expect(result).resolves.toEqual({ base64: 'rendered-png', width: bounds.width, height: bounds.height })
   } else {

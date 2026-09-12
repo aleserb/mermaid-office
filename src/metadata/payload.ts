@@ -1,3 +1,5 @@
+import { isDiagramSettings, type DiagramSettings } from './diagramSettings'
+
 export const DIAGRAM_SCHEMA_VERSION = 1
 export const MERMAID_RENDERER_VERSION = '11.17.2'
 export const CONTENT_CONTROL_TAG_PREFIX = `mermaid-office:v${DIAGRAM_SCHEMA_VERSION}:`
@@ -44,6 +46,7 @@ export interface DiagramPayload {
   size: DiagramSize
   format: DiagramFormat
   rendererVersion: string
+  settings?: DiagramSettings
 }
 
 export function createDiagramPayload(
@@ -51,6 +54,7 @@ export function createDiagramPayload(
   format: DiagramFormat,
   theme: DiagramTheme = 'default',
   size: DiagramSize = 'medium',
+  settings?: DiagramSettings,
 ): DiagramPayload {
   if (!source.trim()) {
     throw new Error('Mermaid source cannot be empty.')
@@ -64,6 +68,7 @@ export function createDiagramPayload(
     size,
     format,
     rendererVersion: MERMAID_RENDERER_VERSION,
+    ...(settings ? { settings: { ...settings } } : {}),
   }
 }
 
@@ -118,6 +123,7 @@ function isDiagramPayload(value: unknown): value is DiagramPayload {
     DIAGRAM_THEMES.includes(payload.theme as DiagramTheme) &&
     (payload.size === undefined ||
       DIAGRAM_SIZES.includes(payload.size as DiagramSize)) &&
+    (payload.settings === undefined || isDiagramSettings(payload.settings)) &&
     ['svg', 'png'].includes(String(payload.format)) &&
     typeof payload.rendererVersion === 'string'
   )

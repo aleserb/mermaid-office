@@ -20,14 +20,17 @@ compatibility strategy, and delivery plan.
 The add-in creates a tightly cropped PNG locally before inserting it into Word.
 Using one image format across desktop and web avoids host-specific SVG sizing
 differences and keeps insertion and update behavior consistent.
-The final PNG is rasterized directly from SVG with automatic resolution: it targets
+The final PNG is rasterized directly from SVG. Auto quality (the default) targets
 2 pixels per displayed CSS pixel for normal viewing on a high-density screen,
 retaining native SVG detail for dense diagrams when the budget permits.
 New diagrams use the fitted Word size; edits use the picture's actual width,
 including manual resizing, rather than always targeting extreme zoom.
 Resolution is recalculated on insertion or a valid edit, not on Word zoom changes
-or resizing alone. There is no quality selector to configure.
-Exports are bounded to 4096 pixels per side and about 4.2 megapixels to limit memory use;
+or resizing alone. Standard quality uses the same display target without retaining
+extra native detail for dense diagrams. Auto and Standard exports are bounded to
+4096 pixels per side and about 4.2 megapixels. High quality targets 3x native detail
+or 8x the displayed CSS width, bounded to 8192 pixels per side and about 33.6 megapixels.
+High quality uses more memory and produces larger PNGs;
 canvas backing stores are released immediately after encoding.
 Cropping, displayed Word size, and embedded source metadata are preserved.
 Small diagrams use Word's native PNG insertion and replacement API, avoiding the
@@ -90,11 +93,32 @@ the diagram's colors and exported PNG.
 The code editor always uses the platform's System UI font at 12 px.
 This changes only the editor display, not the diagram output.
 
-The editor offers Mermaid's Default, Neutral, Dark, Forest, Neo, Redux Color,
+The gear button opens a settings dialog inside the task pane, not a separate
+Office dialog window. Theme is in this dialog rather than above the code editor.
+Use Apply to change all selected settings together, or Cancel/Escape to discard
+the dialog changes. Selecting another diagram closes the settings dialog.
+
+Settings offers Mermaid's Default, Neutral, Dark, Forest, Neo, Redux Color,
 and monochrome Redux render themes, including their dark variants. The selected
 theme is stored with the diagram so it is restored when editing later. The most
 recently selected theme is also remembered for new diagrams. New users start
 with Redux Color when no theme preference has been saved.
+Additional settings include diagram font and font size, visual style, flowchart
+spacing/connectors/layout, sequence spacing/numbering/wrapping/bottom participants,
+and Auto/Standard/High PNG quality. Type-specific controls appear only for the
+relevant diagram. There is no custom-color editor.
+ELK flowchart layout loads an additional bundled client-side module only when needed;
+no diagram data is sent to a layout service.
+These settings are stored with the diagram in Word and embedded PNG metadata.
+The last applied settings are also remembered for new diagrams; older diagrams
+without settings retain their original defaults. Diagram font settings do not
+change the code editor's System UI font.
+High PNG quality can switch even a small diagram to the OOXML insertion path and
+cause Word's "Waiting..." dialog; Auto is recommended for routine live editing.
+Default-valued options retain existing source configuration. Resetting an option
+to its default does not suppress explicit frontmatter/init settings or directives
+such as `autonumber`. Visual-look support varies by diagram type; sequence diagrams
+do not support Hand-drawn.
 
 The ribbon has one **Insert > Mermaid** button, which opens the code-only
 right-hand task pane. There is no separate editor dialog or preview pane.

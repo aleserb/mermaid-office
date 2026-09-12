@@ -1,6 +1,7 @@
 import { embedPayloadInPng, getPngDimensions, setPngPhysicalWidth } from '../metadata/pngMetadata'
 import { configureDiagramContentControl, suppressDiagramPlaceholder } from './contentControls'
 import { createDiagramPictureOoxml, type PictureOptions } from './pictureOoxml'
+import { getDiagramSettings, sameDiagramSettings, type DiagramSettings, type ImageQuality } from '../metadata/diagramSettings'
 import {
   createDiagramPayload,
   getContentControlTag,
@@ -39,13 +40,17 @@ const DIAGRAM_WIDTHS: Record<DiagramSize, number> = {
   'page-width': 468,
 }
 
-const MAX_RASTER_DIMENSION = 4096
-const MAX_RASTER_PIXELS = 4 * 1024 * 1024
+const RASTER_LIMITS = {
+  auto: { dimension: 4096, pixels: 4 * 1024 * 1024 },
+  standard: { dimension: 4096, pixels: 4 * 1024 * 1024 },
+  high: { dimension: 8192, pixels: 32 * 1024 * 1024 },
+} satisfies Record<ImageQuality, { dimension: number; pixels: number }>
 
 export function getRasterDimensions(
   width: number,
   height: number,
   sizeOrWidth?: DiagramSize | number,
+  quality: ImageQuality = 'auto',
 ): { width: number; height: number } {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     throw new Error('Diagram dimensions must be positive finite numbers.')
@@ -56,14 +61,18 @@ export function getRasterDimensions(
   const displayWidth = typeof sizeOrWidth === 'number'
     ? sizeOrWidth
     : sizeOrWidth ? fitDiagram(width, height, DIAGRAM_WIDTHS[sizeOrWidth], 650, true).width : 0
-  // Target normal viewing on a 2x-density screen, retaining native SVG detail
-  // for dense diagrams when the budget permits. Word widths are in points.
-  const preferredScale = Math.max(1, displayWidth * (96 / 72) * 2 / width)
+  // Word widths are in points. Standard targets a 2x-density display; Auto also
+  // retains native SVG detail, while High reserves detail for extreme zoom.
+  const displayScale = displayWidth > 0 ? displayWidth * (96 / 72) * 2 / width : 1
+  const preferredScale = quality === 'high'
+    ? Math.max(3, displayWidth > 0 ? displayScale * 4 : 3)
+    : quality === 'standard' ? displayScale : Math.max(1, displayScale)
+  const limits = RASTER_LIMITS[quality]
   const scale = Math.min(
     preferredScale,
-    MAX_RASTER_DIMENSION / width,
-    MAX_RASTER_DIMENSION / height,
-    Math.sqrt(MAX_RASTER_PIXELS / width / height),
+    limits.dimension / width,
+    limits.dimension / height,
+    Math.sqrt(limits.pixels / width / height),
   )
   return {
     width: Math.max(1, Math.floor(width * scale)),
@@ -127,6 +136,7 @@ export function normalizeSvgDimensions(svg: string): {
 export async function rasterizeSvg(
   svg: string,
   sizeOrWidth?: DiagramSize | number,
+  quality: ImageQuality = 'auto',
 ): Promise<RasterizedDiagram> {
   const normalized = normalizeSvgDimensions(svg)
   const scale = Math.min(2, 4096 / Math.max(normalized.width, normalized.height))
@@ -168,7 +178,7 @@ export async function rasterizeSvg(
     const croppedHeight = bottom - top
     const logicalWidth = croppedWidth / scale
     const logicalHeight = croppedHeight / scale
-    const dimensions = getRasterDimensions(logicalWidth, logicalHeight, sizeOrWidth)
+    const dimensions = getRasterDimensions(logicalWidth, logicalHeight, sizeOrWidth, quality)
     canvas.width = 1
     canvas.height = 1
     const output = window.document.createElement('canvas')
@@ -213,8 +223,8 @@ export async function rasterizeSvg(
   }
 }
 
-export async function svgToPngBase64(svg: string): Promise<string> {
-  return (await rasterizeSvg(svg)).base64
+export async function svgToPngBase64(svg: string, quality: ImageQuality = 'auto'): Promise<string> {
+  return (await rasterizeSvg(svg, undefined, quality)).base64
 }
 
 async function separateEnclosingDiagram(
@@ -304,6 +314,7 @@ export async function updateDiagram(
   size: DiagramSize = existing.size,
   applySize = false,
   renderedRaster?: RasterizedDiagram,
+  settings?: DiagramSettings,
 ): Promise<DiagramFormat> {
   if (typeof Word === 'undefined') {
     throw new Error('Open Mermaid Office inside Microsoft Word to update a diagram.')
@@ -315,6 +326,7 @@ export async function updateDiagram(
     theme,
     size,
     format: 'png',
+    ...(settings ? { settings: { ...settings } } : {}),
   }
   await Word.run(async (context) => {
     const selection = context.document.getSelection()
@@ -348,7 +360,9 @@ export async function updateDiagram(
       throw new Error('The selected Mermaid diagram no longer contains a picture.')
     }
 
-    const raster = renderedRaster ?? (await rasterizeSvg(svg, applySize ? size : existingPicture.width))
+    const raster = renderedRaster ?? (await rasterizeSvg(
+      svg, applySize ? size : existingPicture.width, getDiagramSettings(payload.settings).imageQuality,
+    ))
     suppressDiagramPlaceholder(contentControl)
     const replacement = await replaceDiagramPicture(context, existingPicture, raster, payload, applySize, {
       altTextTitle: existingPicture.altTextTitle || 'Mermaid diagram',
@@ -434,12 +448,16 @@ export async function updateDiagramById(
   size: DiagramSize = existing.size,
   applySize = false,
   renderedRaster?: RasterizedDiagram,
+  settings?: DiagramSettings,
 ): Promise<DiagramFormat> {
   if (typeof Word === 'undefined') {
     throw new Error('Open Mermaid Office inside Microsoft Word to update a diagram.')
   }
 
-  const payload: DiagramPayload = { ...existing, source, theme, size, format: 'png' }
+  const payload: DiagramPayload = {
+    ...existing, source, theme, size, format: 'png',
+    ...(settings ? { settings: { ...settings } } : {}),
+  }
   await Word.run(async (context) => {
     const controls = context.document.contentControls.getByTag(getContentControlTag(existing.id))
     controls.load('items')
@@ -466,7 +484,8 @@ export async function updateDiagramById(
         stored.source !== existing.source ||
         stored.theme !== existing.theme ||
         stored.size !== existing.size ||
-        stored.format !== existing.format
+        stored.format !== existing.format ||
+        !sameDiagramSettings(stored.settings, existing.settings)
       ) {
         throw new Error('The Mermaid diagram changed in another editor. Select it again before updating.')
       }
@@ -475,7 +494,9 @@ export async function updateDiagramById(
     const picture = pictures.items[0]
     picture.load('altTextTitle,altTextDescription,width')
     await context.sync()
-    const raster = renderedRaster ?? (await rasterizeSvg(svg, applySize ? size : picture.width))
+    const raster = renderedRaster ?? (await rasterizeSvg(
+      svg, applySize ? size : picture.width, getDiagramSettings(payload.settings).imageQuality,
+    ))
     suppressDiagramPlaceholder(controls.items[0])
     await replaceDiagramPicture(context, picture, raster, payload, applySize)
     await context.sync()
@@ -507,8 +528,9 @@ export async function insertDiagram(
   theme: DiagramTheme = 'default',
   size: DiagramSize = 'medium',
   renderedRaster?: RasterizedDiagram,
+  settings?: DiagramSettings,
 ): Promise<DiagramFormat> {
-  return (await insertDiagramWithPayload(svg, source, theme, size, renderedRaster)).format
+  return (await insertDiagramWithPayload(svg, source, theme, size, renderedRaster, {}, settings)).format
 }
 
 export async function insertDiagramWithPayload(
@@ -518,13 +540,14 @@ export async function insertDiagramWithPayload(
   size: DiagramSize = 'medium',
   renderedRaster?: RasterizedDiagram,
   options: DiagramInsertionOptions = {},
+  settings?: DiagramSettings,
 ): Promise<DiagramPayload> {
   if (typeof Office === 'undefined' || !Office.context?.document) {
     throw new Error('Open Mermaid Office inside Microsoft Word to insert a diagram.')
   }
 
-  const payload = createDiagramPayload(source, 'png', theme, size)
-  const raster = renderedRaster ?? (await rasterizeSvg(svg, size))
+  const payload = createDiagramPayload(source, 'png', theme, size, settings)
+  const raster = renderedRaster ?? (await rasterizeSvg(svg, size, getDiagramSettings(settings).imageQuality))
   const png = embedPayloadInPng(raster.base64, payload)
   await insertPngObject({ ...raster, base64: png }, payload, options)
   return payload

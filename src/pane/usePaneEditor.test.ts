@@ -1,13 +1,17 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDiagramPayload } from '../metadata/payload'
+import { DEFAULT_DIAGRAM_SETTINGS } from '../metadata/diagramSettings'
 import { DEFAULT_DIAGRAM } from '../defaultDiagram'
 import { renderMermaid } from '../mermaid/render'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
 import { getSelectedDiagram, watchSelectedDiagram } from '../word/selection'
 import { LIVE_UPDATE_DELAY, usePaneEditor } from './usePaneEditor'
 
-vi.mock('../mermaid/render', () => ({ renderMermaid: vi.fn() }))
+vi.mock('../mermaid/render', async importOriginal => ({
+  ...await importOriginal<typeof import('../mermaid/render')>(),
+  renderMermaid: vi.fn(),
+}))
 vi.mock('../word/insertDiagram', () => ({
   insertDiagramWithPayload: vi.fn(),
   updateDiagramById: vi.fn(),
@@ -45,8 +49,8 @@ beforeEach(() => {
   })
   vi.mocked(renderMermaid).mockImplementation(async (source) => `<svg>${source}</svg>`)
   vi.mocked(updateDiagramById).mockResolvedValue('png')
-  vi.mocked(insertDiagramWithPayload).mockImplementation(async (_svg, source, theme, size) =>
-    createDiagramPayload(source, 'png', theme, size))
+  vi.mocked(insertDiagramWithPayload).mockImplementation(async (_svg, source, theme, size, _raster, _options, settings) =>
+    createDiagramPayload(source, 'png', theme, size, settings))
 })
 
 afterEach(() => {
@@ -87,6 +91,7 @@ describe('code-only pane workflow', () => {
     expect(updateDiagramById).toHaveBeenCalledWith(
       expect.any(String), expect.objectContaining({ id: insertedId }),
       'flowchart LR\nA-->C', 'redux-color', 'medium', false,
+      undefined, DEFAULT_DIAGRAM_SETTINGS,
     )
   })
 
@@ -101,6 +106,7 @@ describe('code-only pane workflow', () => {
     expect(updateDiagramById).toHaveBeenCalledOnce()
     expect(updateDiagramById).toHaveBeenCalledWith(
       expect.any(String), existing, 'flowchart LR\nA-->D', 'forest', 'medium', false,
+      undefined, DEFAULT_DIAGRAM_SETTINGS,
     )
     expect(getSelectedDiagram).toHaveBeenCalledOnce()
   })
@@ -137,6 +143,7 @@ describe('code-only pane workflow', () => {
     await renderPending()
     expect(updateDiagramById).toHaveBeenCalledWith(
       expect.any(String), existing, existing.source, 'redux-color', 'medium', false,
+      undefined, DEFAULT_DIAGRAM_SETTINGS,
     )
     expect(localStorage.getItem('mermaid-office:preferred-theme')).toBe('redux-color')
   })
@@ -151,6 +158,7 @@ describe('code-only pane workflow', () => {
     expect(updateDiagramById).toHaveBeenLastCalledWith(
       expect.any(String), expect.objectContaining({ format: 'png' }),
       'flowchart LR\nUpdatedAgain', 'forest', 'medium', false,
+      undefined, DEFAULT_DIAGRAM_SETTINGS,
     )
   })
 
@@ -187,6 +195,7 @@ describe('code-only pane workflow', () => {
     expect(result.current.draft.source).toContain('TypedDuringInsert')
     expect(updateDiagramById).toHaveBeenCalledWith(
       expect.any(String), inserted, 'flowchart LR\nTypedDuringInsert', 'redux-color', 'medium', false,
+      undefined, DEFAULT_DIAGRAM_SETTINGS,
     )
   })
 
@@ -350,5 +359,91 @@ describe('code-only pane workflow', () => {
     await renderPending()
     expect(updateDiagramById).not.toHaveBeenCalled()
     expect(stopWatching).toHaveBeenCalledOnce()
+  })
+
+  it('applies settings and theme atomically and saves even a settings-only edit', async () => {
+    const { result } = await openPane(existing)
+    await renderPending()
+    const settings = { ...DEFAULT_DIAGRAM_SETTINGS, fontSize: 20 as const, imageQuality: 'high' as const }
+    act(() => result.current.applySettings(existing.theme, settings))
+    expect(result.current.dirty).toBe(true)
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    await renderPending()
+    expect(renderMermaid).toHaveBeenLastCalledWith(existing.source, existing.theme, settings)
+    expect(updateDiagramById).toHaveBeenCalledExactlyOnceWith(
+      expect.any(String), existing, existing.source, existing.theme, existing.size, false, undefined, settings,
+    )
+    expect(result.current.target?.settings).toEqual(settings)
+    expect(result.current.dirty).toBe(false)
+    expect(JSON.parse(localStorage.getItem('mermaid-office:preferred-settings')!)).toEqual(settings)
+  })
+
+  it('restores selected settings and keeps legacy diagrams on defaults', async () => {
+    const settings = { ...DEFAULT_DIAGRAM_SETTINGS, sequenceNumbers: true, sequenceWrap: true }
+    const configured = { ...existing, settings, source: 'sequenceDiagram\nA->>B: Hello' }
+    const { result } = await openPane(configured)
+    expect(result.current.draft.settings).toEqual(settings)
+    expect(result.current.diagramKind).toBe('sequence')
+    await renderPending()
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    act(() => selectInWord({ ...existing, id: 'legacy-other' }))
+    expect(result.current.draft.settings).toEqual(DEFAULT_DIAGRAM_SETTINGS)
+    expect(result.current.diagramKind).toBe('flowchart')
+  })
+
+  it('stores settings on initial insertion and retains them on later source edits', async () => {
+    const { result } = await openPane()
+    const settings = { ...DEFAULT_DIAGRAM_SETTINGS, layout: 'elk' as const, imageQuality: 'standard' as const }
+    act(() => result.current.applySettings('neutral', settings))
+    await renderPending()
+    await act(async () => { await result.current.insert() })
+    expect(insertDiagramWithPayload).toHaveBeenCalledExactlyOnceWith(
+      expect.any(String), DEFAULT_DIAGRAM, 'neutral', 'medium', undefined, { requireEmptySelection: true }, settings,
+    )
+    expect(result.current.target?.settings).toEqual(settings)
+    act(() => result.current.changeSource('flowchart LR\nUpdated'))
+    await renderPending()
+    expect(result.current.target?.settings).toEqual(settings)
+  })
+
+  it('does not rewrite unchanged settings or a legacy default diagram', async () => {
+    const { result } = await openPane(existing)
+    await renderPending()
+    act(() => result.current.applySettings(existing.theme, { ...DEFAULT_DIAGRAM_SETTINGS }))
+    await renderPending()
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    expect(result.current.dirty).toBe(false)
+  })
+
+  it('confirms switching away from unapplied Word settings changes', async () => {
+    const { result } = await openPane(existing)
+    act(() => result.current.applySettings('dark', { ...DEFAULT_DIAGRAM_SETTINGS, sequenceWrap: true }))
+    act(() => selectInWord(null))
+    expect(result.current.pending).not.toBeNull()
+    await renderPending()
+    expect(updateDiagramById).not.toHaveBeenCalled()
+  })
+
+  it('retains newer settings while an earlier Word write finishes', async () => {
+    const { result } = await openPane(existing)
+    await renderPending()
+    let finish: (format: 'png') => void = () => { throw new Error('Write has not started') }
+    vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    const first = { ...DEFAULT_DIAGRAM_SETTINGS, fontSize: 18 as const }
+    const latest = { ...first, imageQuality: 'high' as const }
+    act(() => result.current.applySettings('dark', first))
+    await renderPending()
+    act(() => result.current.applySettings('dark', latest))
+    await renderPending()
+    expect(updateDiagramById).toHaveBeenCalledOnce()
+    await act(async () => { finish('png') })
+    expect(updateDiagramById).toHaveBeenCalledTimes(2)
+    expect(updateDiagramById).toHaveBeenLastCalledWith(
+      expect.any(String), expect.objectContaining({ settings: first }),
+      existing.source, 'dark', 'medium', false, undefined, latest,
+    )
+    expect(result.current.target?.settings).toEqual(latest)
+    expect(result.current.draft.settings).toEqual(latest)
+    expect(result.current.dirty).toBe(false)
   })
 })

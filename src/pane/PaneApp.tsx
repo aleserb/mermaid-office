@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   Button,
   Caption1,
@@ -15,12 +16,28 @@ import {
 } from '@fluentui/react-components'
 import { MermaidEditor } from '../components/MermaidEditor'
 import { SyntaxHelpLink } from '../components/SyntaxHelpLink'
-import { ThemePicker } from '../components/ThemePicker'
+import { DiagramSettingsDialog } from '../components/DiagramSettingsDialog'
 import { usePaneEditor } from './usePaneEditor'
 import './pane.css'
 
 export function PaneApp() {
   const editor = usePaneEditor()
+  const settingsButton = useRef<HTMLButtonElement>(null)
+  const restoreSettingsFocus = useRef(false)
+  const [settingsHistoryKey, setSettingsHistoryKey] = useState<number | null>(null)
+  if (settingsHistoryKey !== null && (settingsHistoryKey !== editor.historyKey || editor.pending)) {
+    setSettingsHistoryKey(null)
+  }
+  useEffect(() => {
+    if (settingsHistoryKey === null && restoreSettingsFocus.current) {
+      restoreSettingsFocus.current = false
+      settingsButton.current?.focus()
+    }
+  }, [settingsHistoryKey])
+  const closeSettings = () => {
+    restoreSettingsFocus.current = true
+    setSettingsHistoryKey(null)
+  }
   const busy = !editor.ready || editor.writing || editor.loadingSelection
   const status = editor.writing
     ? 'Writing diagram to Word...'
@@ -32,9 +49,33 @@ export function PaneApp() {
     <FluentProvider theme={webLightTheme} style={{ colorScheme: 'light' }}>
       <main className="pane-shell">
         <header className="pane-header">
-          <div className="diagram-options">
-            <ThemePicker value={editor.draft.theme} onChange={editor.changeTheme} />
-          </div>
+          <DiagramSettingsDialog
+            open={settingsHistoryKey === editor.historyKey && !editor.pending}
+            theme={editor.draft.theme}
+            settings={editor.draft.settings}
+            diagramKind={editor.diagramKind}
+            disabled={busy || !!editor.pending}
+            onOpen={() => setSettingsHistoryKey(editor.historyKey)}
+            onCancel={closeSettings}
+            onApply={(theme, settings) => {
+              if (busy || editor.pending || settingsHistoryKey !== editor.historyKey) return
+              editor.applySettings(theme, settings)
+              closeSettings()
+            }}
+            trigger={<Button
+              ref={settingsButton}
+              appearance="subtle"
+              size="small"
+              aria-label="Diagram settings"
+              title="Diagram settings"
+              disabled={busy || !!editor.pending}
+              icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                <path d="m9.5 3-.6 2.3-1.8 1.1-2.3-.6-2.5 4.4L4 11.8v2.1l-1.7 1.6 2.5 4.3 2.3-.6 1.8 1.1.6 2.2h5l.6-2.2 1.8-1.1 2.3.6 2.5-4.3-1.7-1.6v-2.1l1.7-1.6-2.5-4.4-2.3.6-1.8-1.1L14.5 3h-5Z"
+                  stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" transform="translate(0 -1)" />
+                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.5" />
+              </svg>}
+            />}
+          />
         </header>
 
         {status && <Caption1 role="status">{status}</Caption1>}
@@ -72,7 +113,7 @@ export function PaneApp() {
           <SyntaxHelpLink />
         </footer>
 
-        {editor.pending && <Dialog open onOpenChange={(_, data) => {
+        <Dialog open={!!editor.pending} onOpenChange={(_, data) => {
           if (!data.open) editor.keepEditing()
         }}>
           <DialogSurface>
@@ -83,11 +124,12 @@ export function PaneApp() {
               </DialogContent>
               <DialogActions>
                 <Button onClick={editor.keepEditing}>Keep editing</Button>
-                <Button appearance="primary" onClick={editor.discardAndSwitch}>Discard and switch</Button>
+                <Button appearance="primary" disabled={!editor.pending || editor.writing}
+                  onClick={editor.discardAndSwitch}>Discard and switch</Button>
               </DialogActions>
             </DialogBody>
           </DialogSurface>
-        </Dialog>}
+        </Dialog>
       </main>
     </FluentProvider>
   )

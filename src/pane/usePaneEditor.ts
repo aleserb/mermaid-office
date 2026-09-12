@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DEFAULT_DIAGRAM } from '../defaultDiagram'
 import { normalizeMermaidError, type MermaidDiagnostic } from '../mermaid/diagnostics'
-import { renderMermaid } from '../mermaid/render'
+import { detectDiagramKind, renderMermaid } from '../mermaid/render'
 import type { DiagramPayload, DiagramSize, DiagramTheme } from '../metadata/payload'
-import { getPreferredTheme, setPreferredTheme } from '../preferences/diagramPreferences'
+import { getDiagramSettings, sameDiagramSettings, type DiagramSettings } from '../metadata/diagramSettings'
+import { getPreferredSettings, getPreferredTheme, setPreferredSettings, setPreferredTheme } from '../preferences/diagramPreferences'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
 import { getSelectedDiagram, watchSelectedDiagram, type DiagramSelectionWatcher } from '../word/selection'
 
@@ -13,6 +14,7 @@ interface Draft {
   source: string
   theme: DiagramTheme
   size: DiagramSize
+  settings: DiagramSettings
 }
 
 interface RenderedDraft {
@@ -21,11 +23,15 @@ interface RenderedDraft {
 }
 
 function newDraft(): Draft {
-  return { source: DEFAULT_DIAGRAM, theme: getPreferredTheme(), size: 'medium' }
+  return { source: DEFAULT_DIAGRAM, theme: getPreferredTheme(), size: 'medium', settings: getPreferredSettings() }
 }
 
-function sameDraft(left: Draft, right: Draft): boolean {
+function sameDraft(
+  left: Pick<DiagramPayload, 'source' | 'theme' | 'size' | 'settings'>,
+  right: Pick<DiagramPayload, 'source' | 'theme' | 'size' | 'settings'>,
+): boolean {
   return left.source === right.source && left.theme === right.theme && left.size === right.size
+    && sameDiagramSettings(left.settings, right.settings)
 }
 
 function errorMessage(error: unknown): string {
@@ -48,7 +54,7 @@ export function usePaneEditor() {
   const mounted = useRef(false)
   const busy = useRef(false)
   const draftRef = useRef(draft)
-  const savedRef = useRef<Draft>(baseline)
+  const savedRef = useRef<Pick<DiagramPayload, 'source' | 'theme' | 'size' | 'settings'>>(baseline)
   const targetRef = useRef<DiagramPayload | null>(null)
   const lastSelectionId = useRef<string | null | undefined>(undefined)
   const selectionFromDocument = useRef(false)
@@ -56,7 +62,7 @@ export function usePaneEditor() {
 
   const activate = useCallback((payload: DiagramPayload | null) => {
     const next = payload
-      ? { source: payload.source, theme: payload.theme, size: payload.size }
+      ? { source: payload.source, theme: payload.theme, size: payload.size, settings: getDiagramSettings(payload.settings) }
       : newDraft()
     draftRef.current = next
     savedRef.current = next
@@ -153,7 +159,7 @@ export function usePaneEditor() {
     let active = true
     const timer = window.setTimeout(async () => {
       try {
-        const svg = await renderMermaid(draft.source, draft.theme)
+        const svg = await renderMermaid(draft.source, draft.theme, draft.settings)
         if (active) setRendered({ draft, svg })
       } catch (error) {
         if (active) setDiagnostic(normalizeMermaidError(error, draft.source))
@@ -180,6 +186,7 @@ export function usePaneEditor() {
     setWordError('')
     void updateDiagramById(
       rendered.svg, target, draft.source, draft.theme, draft.size, draft.size !== target.size,
+      undefined, draft.settings,
     ).then((format) => {
       const saved = { ...target, ...draft, format }
       savedRef.current = saved
@@ -204,6 +211,7 @@ export function usePaneEditor() {
   }, [draft, failedWrite, loadingSelection, pending, ready, rendered, target, writing])
 
   const changeDraft = (next: Draft) => {
+    if (sameDraft(next, draftRef.current)) return
     draftRef.current = next
     setDraft(next)
     setRendered(null)
@@ -215,6 +223,12 @@ export function usePaneEditor() {
   const changeTheme = (theme: DiagramTheme) => {
     changeDraft({ ...draftRef.current, theme })
     setPreferredTheme(theme)
+  }
+
+  const applySettings = (theme: DiagramTheme, settings: DiagramSettings) => {
+    changeDraft({ ...draftRef.current, theme, settings: { ...settings } })
+    setPreferredTheme(theme)
+    setPreferredSettings(settings)
   }
 
   const insert = async () => {
@@ -232,6 +246,7 @@ export function usePaneEditor() {
       }
       const inserted = await insertDiagramWithPayload(
         rendered.svg, draft.source, draft.theme, draft.size, undefined, { requireEmptySelection: true },
+        draft.settings,
       )
       savedRef.current = inserted
       targetRef.current = inserted
@@ -255,7 +270,8 @@ export function usePaneEditor() {
     canInsert: ready && !target && Boolean(rendered && sameDraft(rendered.draft, draft)) &&
       !diagnostic && !writing && !loadingSelection,
     canRetry: Boolean(failedWrite && rendered === failedWrite),
-    changeSource, changeTheme, insert,
+    changeSource, changeTheme, applySettings, insert,
+    diagramKind: detectDiagramKind(draft.source),
     keepEditing: () => setPending(null),
     discardAndSwitch: () => { if (pending && !busy.current) activate(pending.target) },
     retry: () => setFailedWrite(null),
