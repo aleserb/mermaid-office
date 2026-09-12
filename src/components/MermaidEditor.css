@@ -25,12 +25,14 @@
 }
 
 .editor .cm-editor {
+  font-family: inherit;
+  font-size: inherit;
   height: 100%;
 }
 
 .editor .cm-scroller {
-  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-  font-size: 13px;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 @media (max-width: 720px) {

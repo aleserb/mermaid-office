@@ -13,7 +13,10 @@ import {
   Spinner,
   webLightTheme,
 } from '@fluentui/react-components'
+import { useState } from 'react'
 import { MermaidEditor } from '../components/MermaidEditor'
+import { EditorDisplayControls } from '../components/EditorDisplayControls'
+import { DEFAULT_EDITOR_DISPLAY } from '../components/editorDisplay'
 import { SyntaxHelpLink } from '../components/SyntaxHelpLink'
 import { ThemePicker } from '../components/ThemePicker'
 import { usePaneEditor } from './usePaneEditor'
@@ -21,6 +24,7 @@ import './pane.css'
 
 export function PaneApp() {
   const editor = usePaneEditor()
+  const [display, setDisplay] = useState(DEFAULT_EDITOR_DISPLAY)
   const busy = !editor.ready || editor.writing || editor.loadingSelection
   const status = editor.writing
     ? 'Writing diagram to Word...'
@@ -35,6 +39,7 @@ export function PaneApp() {
           <div className="diagram-options">
             <ThemePicker value={editor.draft.theme} onChange={editor.changeTheme} />
           </div>
+          <EditorDisplayControls value={display} onChange={setDisplay} />
         </header>
 
         {status && <Caption1 role="status">{status}</Caption1>}
@@ -54,6 +59,7 @@ export function PaneApp() {
             onChange={editor.changeSource}
             diagnostic={editor.diagnostic}
             historyKey={String(editor.historyKey)}
+            display={display}
           />
         ) : <Spinner label="Loading selected diagram" />}
 

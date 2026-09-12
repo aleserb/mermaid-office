@@ -79,6 +79,10 @@ remove and upload the manifest again after deployment.
 
 The temporary **Insert > Mermaid pane** button opens an experimental code-only
 right-hand task pane without changing the existing Mermaid Editor dialog.
+Under **Theme**, the **Font** and **Size** controls change only the code editor's
+display, without changing diagram output or undo history. These trial settings
+last while the pane is open. Fonts use local installations with system fallbacks;
+no font downloads are required. **System UI** uses the current platform's UI font.
 Place the cursor on a blank line and press **Insert diagram** once. Valid source
 and theme edits then update that diagram's PNG directly in Word after a short
 typing pause; invalid source leaves the last valid image in place.

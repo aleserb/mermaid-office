@@ -1,0 +1,27 @@
+.editor-display-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.editor-display-controls label {
+  align-items: center;
+  display: flex;
+  font-size: 12px;
+  gap: 6px;
+}
+
+.editor-display-controls select {
+  background: var(--colorNeutralBackground1, #fff);
+  border: 1px solid var(--colorNeutralStroke1, #b3b3b3);
+  border-radius: 4px;
+  color: var(--colorNeutralForeground1, #242424);
+  font: inherit;
+  padding: 4px 8px;
+}
+
+.editor-display-controls select:focus {
+  border-color: var(--colorStrokeFocus2, #0f6cbd);
+  outline: 2px solid var(--colorStrokeFocus2, #0f6cbd);
+  outline-offset: -1px;
+}

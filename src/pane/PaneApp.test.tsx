@@ -1,4 +1,5 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PaneApp } from './PaneApp'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
@@ -24,6 +25,29 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
+})
+
+it('offers font and size controls below Theme without changing diagram content', async () => {
+  vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
+  const user = userEvent.setup()
+  const { container } = render(<PaneApp />)
+  const source = await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
+  const originalSource = source.textContent
+  const theme = screen.getByRole('combobox', { name: 'Diagram theme' })
+  const originalTheme = within(theme).getByRole('option', { selected: true })
+  const controls = screen.getByRole('group', { name: 'Code editor display' })
+  expect(theme.closest('.diagram-options')?.nextElementSibling).toBe(controls)
+
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Code editor font' }), 'System UI')
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Code editor font size' }), '20 px')
+  expect(container.querySelector('.editor')).toHaveStyle({
+    fontFamily: 'system-ui, sans-serif',
+    fontSize: '20px',
+  })
+  expect(source.textContent).toBe(originalSource)
+  expect(within(theme).getByRole('option', { selected: true })).toBe(originalTheme)
+  expect(insertDiagramWithPayload).not.toHaveBeenCalled()
+  expect(updateDiagramById).not.toHaveBeenCalled()
 })
 
 it('shows a light code-only editor without a preview and does not insert automatically', async () => {
