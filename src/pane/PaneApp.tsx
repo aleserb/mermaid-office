@@ -38,6 +38,15 @@ export function PaneApp() {
         </header>
 
         {status && <Caption1 role="status">{status}</Caption1>}
+        {editor.ready ? (
+          <MermaidEditor
+            value={editor.draft.source}
+            onChange={editor.changeSource}
+            diagnostic={editor.diagnostic}
+            historyKey={String(editor.historyKey)}
+          />
+        ) : <Spinner label="Loading selected diagram" />}
+
         {editor.wordError && (
           <MessageBar intent="error">
             <MessageBarBody>{editor.wordError}</MessageBarBody>
@@ -48,20 +57,12 @@ export function PaneApp() {
             <MessageBarBody>{editor.diagnostic.message}</MessageBarBody>
           </MessageBar>
         )}
-        {editor.ready ? (
-          <MermaidEditor
-            value={editor.draft.source}
-            onChange={editor.changeSource}
-            diagnostic={editor.diagnostic}
-            historyKey={String(editor.historyKey)}
-          />
-        ) : <Spinner label="Loading selected diagram" />}
 
         <footer className="pane-footer">
           {(!editor.target || editor.canRetry) && <div className="pane-actions">
             {!editor.target && (
-              <Button appearance="primary" disabled={!editor.canInsert} onClick={() => void editor.insert()}>
-                Insert diagram
+              <Button appearance="primary" size="small" disabled={!editor.canInsert} onClick={() => void editor.insert()}>
+                Insert
               </Button>
             )}
             {editor.canRetry && (

@@ -4,6 +4,7 @@ import { PaneApp } from './PaneApp'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
 import { createDiagramPayload } from '../metadata/payload'
 import { watchSelectedDiagram } from '../word/selection'
+import { renderMermaid } from '../mermaid/render'
 
 vi.mock('../mermaid/render', () => ({
   renderMermaid: vi.fn().mockResolvedValue('<svg></svg>'),
@@ -45,9 +46,9 @@ it('shows a light code-only editor without a preview and does not insert automat
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   const { container } = render(<PaneApp />)
   expect(await screen.findByRole('textbox', { name: 'Mermaid diagram source' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Insert diagram' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Insert' })).toBeInTheDocument()
   const footer = screen.getByRole('contentinfo')
-  expect(within(footer).getByRole('button', { name: 'Insert diagram' })).toBeInTheDocument()
+  expect(within(footer).getByRole('button', { name: 'Insert' })).toBeInTheDocument()
   expect(within(footer).getByRole('link', { name: 'Mermaid syntax' })).toBeInTheDocument()
   expect(container.querySelector('.editor-shell')?.nextElementSibling).toBe(footer)
   expect(within(screen.getByRole('banner')).queryByRole('link')).not.toBeInTheDocument()
@@ -76,7 +77,7 @@ it('hides Insert and saved-diagram instructions until the diagram is deselected'
   render(<PaneApp />)
   await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
 
-  expect(screen.queryByRole('button', { name: 'Insert diagram' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Insert' })).not.toBeInTheDocument()
   expect(screen.queryByText('Diagram is up to date in Word.')).not.toBeInTheDocument()
   expect(screen.queryByText('Select another diagram to edit it, or a blank line to insert a new one.'))
     .not.toBeInTheDocument()
@@ -89,6 +90,30 @@ it('hides Insert and saved-diagram instructions until the diagram is deselected'
     options?.onSelectionChange?.()
     onSelected(null)
   })
-  expect(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Insert diagram' }))
+  expect(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Insert' }))
     .toBeInTheDocument()
+})
+
+it.each(['render', 'word'])('shows %s errors below the code editor and above the footer', async (kind) => {
+  vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
+  vi.stubGlobal('ResizeObserver', class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  })
+  const message = kind === 'render' ? 'Invalid diagram source.' : 'Unable to read Word selection.'
+  if (kind === 'render') {
+    vi.mocked(renderMermaid).mockRejectedValueOnce(new Error(message))
+  } else {
+    vi.mocked(watchSelectedDiagram).mockImplementationOnce((_onSelected, onError) => {
+      onError(new Error(message))
+      return Object.assign(vi.fn(), { refresh: vi.fn() })
+    })
+  }
+  const { container } = render(<PaneApp />)
+  const error = await screen.findByText(message, { exact: false }, { timeout: 2000 })
+  const bar = error.closest('.fui-MessageBar')
+  expect(container.querySelector('.editor-shell')?.nextElementSibling).toBe(bar)
+  expect(bar?.nextElementSibling).toBe(screen.getByRole('contentinfo'))
+  expect(screen.getByRole('button', { name: 'Insert' })).toBeDisabled()
 })

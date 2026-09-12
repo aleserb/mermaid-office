@@ -86,13 +86,13 @@ remove and upload the manifest again after deployment.
 
 The temporary **Insert > Mermaid pane** button opens an experimental code-only
 right-hand task pane without changing the existing Mermaid Editor dialog.
-Place the cursor on a blank line and press **Insert diagram** once. Valid source
+Place the cursor on a blank line and press **Insert** once. Valid source
 and theme edits then update that diagram's PNG directly in Word after a short
 typing pause; invalid source leaves the last valid image in place.
 
 The pane automatically follows Word's selection. Select a Mermaid picture to
 load its source, or move to ordinary text or a blank line to start with the
-default source and **Insert diagram** button. Repeated selection notifications
+default source and **Insert** button. Repeated selection notifications
 do not reset your current draft. Switching with pending edits requires confirmation.
 Live updates modify the real document and can add Word undo/AutoSave changes;
 discarding pending edits does not undo changes already written to Word.
