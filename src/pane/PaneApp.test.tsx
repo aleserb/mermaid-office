@@ -1,5 +1,4 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, expect, it, vi } from 'vitest'
 import { PaneApp } from './PaneApp'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
@@ -27,25 +26,17 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it('offers font and size controls below Theme without changing diagram content', async () => {
+it('uses fixed System UI at 12px without font or size controls', async () => {
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
-  const user = userEvent.setup()
   const { container } = render(<PaneApp />)
-  const source = await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
-  const originalSource = source.textContent
-  const theme = screen.getByRole('combobox', { name: 'Diagram theme' })
-  const originalTheme = within(theme).getByRole('option', { selected: true })
-  const controls = screen.getByRole('group', { name: 'Code editor display' })
-  expect(theme.closest('.diagram-options')?.nextElementSibling).toBe(controls)
-
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Code editor font' }), 'System UI')
-  await user.selectOptions(screen.getByRole('combobox', { name: 'Code editor font size' }), '20 px')
+  await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
+  expect(screen.queryByRole('group', { name: 'Code editor display' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: 'Code editor font' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('combobox', { name: 'Code editor font size' })).not.toBeInTheDocument()
   expect(container.querySelector('.editor')).toHaveStyle({
     fontFamily: 'system-ui, sans-serif',
-    fontSize: '20px',
+    fontSize: '12px',
   })
-  expect(source.textContent).toBe(originalSource)
-  expect(within(theme).getByRole('option', { selected: true })).toBe(originalTheme)
   expect(insertDiagramWithPayload).not.toHaveBeenCalled()
   expect(updateDiagramById).not.toHaveBeenCalled()
 })

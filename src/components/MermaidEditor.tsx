@@ -19,7 +19,6 @@ import type { MermaidDiagnostic } from '../mermaid/diagnostics'
 import { createMermaidDiagnostic } from './editorDiagnostics'
 import { mermaidCompletionSource } from './mermaidCompletion'
 import { mermaidLanguage } from './mermaidLanguage'
-import { DEFAULT_EDITOR_DISPLAY, type EditorDisplay } from './editorDisplay'
 import './MermaidEditor.css'
 
 interface MermaidEditorProps {
@@ -27,7 +26,6 @@ interface MermaidEditorProps {
   onChange: (value: string) => void
   diagnostic?: MermaidDiagnostic | null
   historyKey?: string
-  display?: EditorDisplay
 }
 
 function createEditorState(document: string, onChange: (value: string) => void) {
@@ -68,7 +66,6 @@ export function MermaidEditor({
   onChange,
   diagnostic = null,
   historyKey = 'default',
-  display = DEFAULT_EDITOR_DISPLAY,
 }: MermaidEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<EditorView>(null)
@@ -130,16 +127,12 @@ export function MermaidEditor({
     editor.dispatch(setDiagnostics(editor.state, nextDiagnostic ? [nextDiagnostic] : []))
   }, [diagnostic, value])
 
-  useEffect(() => {
-    editorRef.current?.requestMeasure()
-  }, [display.fontFamily, display.fontSize])
-
   return (
     <div className="editor-shell">
       <div
         className="editor"
         ref={hostRef}
-        style={{ fontFamily: display.fontFamily, fontSize: display.fontSize }}
+        style={{ fontFamily: 'system-ui, sans-serif', fontSize: 12 }}
       />
     </div>
   )
