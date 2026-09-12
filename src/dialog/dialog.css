@@ -27,7 +27,7 @@
 
 .dialog-workspace {
   flex: 1;
-  gap: 16px;
+  gap: 2px;
   min-height: 0;
 }
 

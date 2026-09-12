@@ -264,6 +264,7 @@ function App() {
             <div className="panel">
               <Text weight="semibold">Preview</Text>
               <DiagramPreview
+                key={svg}
                 svg={svg}
                 loading={isRendering}
                 error={renderError?.message}

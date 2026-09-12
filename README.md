@@ -45,8 +45,9 @@ editing so changes stay attached to the selected diagram.
 Use **Expand editor** for a larger two-column editing dialog with a live
 preview. Parse failures are shown in the editor gutter, keep the last valid
 preview visible, and prevent saving until the source is valid.
-Preview controls support zooming in and out, resetting to fit, and dragging a
-zoomed diagram to pan. Hold Ctrl (Windows) or Command (macOS) while scrolling
+The preview automatically fits each newly rendered diagram to the available
+space. Its controls support zooming in and out, resetting to fit, and dragging
+a zoomed diagram to pan. Hold Ctrl (Windows) or Command (macOS) while scrolling
 over the preview to zoom without taking over normal page scrolling.
 
 The source editor includes Mermaid-aware syntax highlighting and autocomplete,

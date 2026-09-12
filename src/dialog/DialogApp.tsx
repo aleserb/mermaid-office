@@ -142,7 +142,7 @@ export function DialogApp() {
             right={
               <div className="dialog-panel">
               <Text weight="semibold">Preview</Text>
-              <DiagramPreview svg={svg} loading={rendering} />
+              <DiagramPreview key={svg} svg={svg} loading={rendering} />
               </div>
             }
           />
