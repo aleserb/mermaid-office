@@ -91,13 +91,13 @@ it('opens settings from the keyboard and discards edits on Escape and Cancel', a
   gear.focus()
   await user.keyboard('{Enter}')
   expect(await screen.findByRole('dialog', { name: 'Diagram settings' })).toBeInTheDocument()
-  const originalTheme = (screen.getByRole('combobox', { name: 'Diagram theme' }) as HTMLSelectElement).value
+  const originalTheme = (await screen.findByRole('combobox', { name: 'Diagram theme' }) as HTMLSelectElement).value
   await user.selectOptions(screen.getByRole('combobox', { name: 'Diagram theme' }), 'dark')
   await user.keyboard('{Escape}')
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   await waitFor(() => expect(gear).toHaveFocus())
   await user.click(gear)
-  expect(screen.getByRole('combobox', { name: 'Diagram theme' })).toHaveValue(originalTheme)
+  expect(await screen.findByRole('combobox', { name: 'Diagram theme' })).toHaveValue(originalTheme)
   await user.click(screen.getByRole('button', { name: 'Cancel' }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(insertDiagramWithPayload).not.toHaveBeenCalled()
