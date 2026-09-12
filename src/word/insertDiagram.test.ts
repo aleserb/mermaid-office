@@ -1,18 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   fitDiagram,
   findVisiblePixelBounds,
   insertPngObject,
-  isSvgInsertionSupported,
   normalizeSvgDimensions,
 } from './insertDiagram'
 import { createDiagramPayload, getDocumentSettingKey } from '../metadata/payload'
 
-describe('isSvgInsertionSupported', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
+describe('Word diagram insertion', () => {
   describe('fitDiagram', () => {
     it('keeps small diagrams at their natural size', () => {
       expect(fitDiagram(200, 100)).toEqual({ width: 200, height: 100 })
@@ -29,21 +24,6 @@ describe('isSvgInsertionSupported', () => {
         height: 200,
       })
     })
-  })
-
-  it('returns false outside an Office host', () => {
-    vi.stubGlobal('Office', undefined)
-    expect(isSvgInsertionSupported()).toBe(false)
-  })
-
-  it('checks for ImageCoercion 1.2', () => {
-    const isSetSupported = vi.fn().mockReturnValue(true)
-    vi.stubGlobal('Office', {
-      context: { requirements: { isSetSupported } },
-    })
-
-    expect(isSvgInsertionSupported()).toBe(true)
-    expect(isSetSupported).toHaveBeenCalledWith('ImageCoercion', '1.2')
   })
 
   it('finds the visible alpha bounds for PNG cropping', () => {

@@ -10,15 +10,16 @@ compatibility strategy, and delivery plan.
 ## Technology
 
 - React, TypeScript, and Vite
-- Office.js with SVG insertion through ImageCoercion 1.2
+- Office.js with client-side PNG insertion
 - Mermaid.js and DOMPurify
 - CodeMirror 6
 - Fluent UI React v9
 - Vitest and Testing Library
 - GitHub Pages
 
-SVG is the primary format on supported Word desktop clients. The add-in creates
-a PNG locally when SVG insertion is unavailable, including Word on the web.
+The add-in creates a tightly cropped PNG locally before inserting it into Word.
+Using one image format across desktop and web avoids host-specific SVG sizing
+differences and keeps insertion and update behavior consistent.
 
 ## Development
 

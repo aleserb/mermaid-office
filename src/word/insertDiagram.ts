@@ -8,7 +8,6 @@ import {
   type DiagramSize,
   type DiagramTheme,
 } from '../metadata/payload'
-import { embedPayloadInSvg } from '../metadata/svgMetadata'
 
 export type { DiagramFormat } from '../metadata/payload'
 
@@ -30,25 +29,6 @@ const DIAGRAM_WIDTHS: Record<DiagramSize, number> = {
   medium: 324,
   large: 396,
   'page-width': 468,
-}
-
-export function isSvgInsertionSupported(): boolean {
-  return (
-    typeof Office !== 'undefined' &&
-    Office.context.requirements.isSetSupported('ImageCoercion', '1.2')
-  )
-}
-
-function setSelectedData(data: string, coercionType: Office.CoercionType): Promise<void> {
-  return new Promise((resolve, reject) => {
-    Office.context.document.setSelectedDataAsync(data, { coercionType }, (result) => {
-      if (result.status === Office.AsyncResultStatus.Succeeded) {
-        resolve()
-      } else {
-        reject(new Error(result.error.message))
-      }
-    })
-  })
 }
 
 export function findVisiblePixelBounds(
@@ -326,52 +306,6 @@ export function fitDiagram(
   }
 }
 
-async function wrapSelectedSvgObject(payload: DiagramPayload): Promise<void> {
-  await Word.run(async (context) => {
-    const picture = context.document.getSelection().inlinePictures.getFirstOrNullObject()
-    await context.sync()
-
-    if (picture.isNullObject) {
-      throw new Error('Word inserted the SVG but did not expose it as the current picture.')
-    }
-
-    picture.load('width,height')
-    await context.sync()
-    const dimensions = fitDiagram(
-      picture.width,
-      picture.height,
-      DIAGRAM_WIDTHS[payload.size],
-      650,
-      true,
-    )
-    picture.width = dimensions.width
-    picture.height = dimensions.height
-    configureDiagramPicture(picture)
-    const contentControl = picture.insertContentControl()
-    configureDiagramContentControl(contentControl, payload)
-    const setting = context.document.settings.add(
-      getDocumentSettingKey(payload.id),
-      JSON.stringify(payload),
-    )
-
-    try {
-      await context.sync()
-    } catch (insertError) {
-      contentControl.delete(false)
-      setting.delete()
-      try {
-        await context.sync()
-      } catch (rollbackError) {
-        throw new AggregateError(
-          [insertError, rollbackError],
-          'SVG metadata failed and Word could not fully roll back the inserted diagram.',
-        )
-      }
-      throw insertError
-    }
-  })
-}
-
 export async function insertDiagram(
   svg: string,
   source: string,
@@ -381,17 +315,6 @@ export async function insertDiagram(
 ): Promise<DiagramFormat> {
   if (typeof Office === 'undefined' || !Office.context?.document) {
     throw new Error('Open Mermaid Office inside Microsoft Word to insert a diagram.')
-  }
-
-  if (isSvgInsertionSupported()) {
-    const payload = createDiagramPayload(source, 'svg', theme, size)
-    const normalized = normalizeSvgDimensions(svg)
-    await setSelectedData(
-      embedPayloadInSvg(normalized.svg, payload),
-      Office.CoercionType.XmlSvg,
-    )
-    await wrapSelectedSvgObject(payload)
-    return 'svg'
   }
 
   const payload = createDiagramPayload(source, 'png', theme, size)
