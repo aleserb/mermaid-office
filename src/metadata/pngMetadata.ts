@@ -6,6 +6,13 @@ const KEYWORD = 'mermaid-office'
 const textEncoder = new TextEncoder()
 const textDecoder = new TextDecoder()
 
+export function getPngDimensions(base64Png: string): { width: number; height: number } {
+  const png = base64ToBytes(base64Png)
+  assertPng(png)
+  const { width, height } = readPngHeader(png)
+  return { width, height }
+}
+
 export function embedPayloadInPng(base64Png: string, payload: DiagramPayload): string {
   const png = base64ToBytes(base64Png)
   assertPng(png)
@@ -30,12 +37,7 @@ export function setPngPhysicalWidth(base64Png: string, widthPoints: number): str
     throw new Error('PNG physical width must be a positive number.')
   }
 
-  const ihdrOffset = findChunkOffset(png, 'IHDR')
-  if (ihdrOffset === -1) {
-    throw new Error('PNG does not contain an IHDR chunk.')
-  }
-
-  const pixelWidth = readUint32(png, ihdrOffset + 8)
+  const { offset: ihdrOffset, width: pixelWidth } = readPngHeader(png)
   const widthMeters = (widthPoints / 72) * 0.0254
   const pixelsPerMeter = Math.max(1, Math.round(pixelWidth / widthMeters))
   const densityData = new Uint8Array(9)
@@ -134,6 +136,19 @@ function assertPng(bytes: Uint8Array) {
   ) {
     throw new Error('Image data is not a valid PNG.')
   }
+}
+
+function readPngHeader(png: Uint8Array): { offset: number; width: number; height: number } {
+  const offset = findChunkOffset(png, 'IHDR')
+  if (offset === -1 || readUint32(png, offset) !== 13 || offset + 25 > png.length) {
+    throw new Error('PNG does not contain a complete IHDR chunk.')
+  }
+  const width = readUint32(png, offset + 8)
+  const height = readUint32(png, offset + 12)
+  if (width === 0 || height === 0) {
+    throw new Error('PNG dimensions must be positive.')
+  }
+  return { offset, width, height }
 }
 
 function findChunkOffset(png: Uint8Array, targetType: string): number {

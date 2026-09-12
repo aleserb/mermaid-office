@@ -30,16 +30,18 @@ or resizing alone. There is no quality selector to configure.
 Exports are bounded to 4096 pixels per side and about 4.2 megapixels to limit memory use;
 canvas backing stores are released immediately after encoding.
 Cropping, displayed Word size, and embedded source metadata are preserved.
-Pictures are inserted and updated as an inline Word drawing with explicit frame
-and image dimensions, keeping higher-resolution pixels inside the picture frame.
-Word on the web can show its own blocking "Waiting..." progress dialog while
-importing these drawings, including during live updates. This is a Word-owned
-dialog, not an add-in editor dialog; Office.js provides no supported switch to
-hide it. Direct bitmap replacement is not used because Word can lose the intended
-picture size or paint the new bitmap outside its frame.
-Smaller PNGs reduce raster and import work, but cannot guarantee that Word will
-omit its progress dialog. PNG remains a raster format, so extreme zoom can still
-reveal pixels. Existing images adopt the automatic resolution on their next valid edit.
+Small diagrams use Word's native PNG insertion and replacement API, avoiding the
+OOXML import that triggers Word's blocking "Waiting..." dialog even for tiny images.
+This path is limited to PNGs at most 1536 pixels per side and 2 Mi-pixels, in frames
+at most 468 points wide and 432 points tall. Source metadata, alternative text,
+and the displayed width are preserved on updates.
+Larger or taller pictures use an inline OOXML drawing with explicit frame and image
+dimensions: native replacement can auto-fit these pictures or paint outside the frame.
+Word on the web can still show its own blocking "Waiting..." dialog when importing
+these larger drawings, including during live updates. This is a Word-owned dialog,
+not an add-in editor dialog; Office.js provides no supported switch to hide it.
+PNG remains a raster format, so extreme zoom can still reveal pixels. Existing
+images adopt the automatic resolution and insertion path on their next valid edit.
 
 ## Development
 

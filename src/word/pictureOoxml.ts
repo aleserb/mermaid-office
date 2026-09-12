@@ -1,4 +1,4 @@
-interface PictureOptions {
+export interface PictureOptions {
   width: number
   height: number
   altTextTitle?: string

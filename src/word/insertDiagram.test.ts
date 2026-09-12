@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   fitDiagram,
   findVisiblePixelBounds,
@@ -10,12 +10,18 @@ import {
   updateDiagramById,
 } from './insertDiagram'
 import { createDiagramPayload, getContentControlTag, getDocumentSettingKey } from '../metadata/payload'
-import { embedPayloadInPng, readPayloadFromPng, setPngPhysicalWidth } from '../metadata/pngMetadata'
+import { embedPayloadInPng, getPngDimensions, readPayloadFromPng, setPngPhysicalWidth } from '../metadata/pngMetadata'
+
+vi.mock('../metadata/pngMetadata', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../metadata/pngMetadata')>(),
+  getPngDimensions: vi.fn(),
+}))
 
 const transparentPixel =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwX9WQAAAABJRU5ErkJggg=='
 
 afterEach(() => vi.restoreAllMocks())
+beforeEach(() => vi.mocked(getPngDimensions).mockReturnValue({ width: 2048, height: 2048 }))
 
 function readPictureOoxml(xml: string) {
   const document = new DOMParser().parseFromString(xml, 'application/xml')
@@ -45,7 +51,10 @@ function mockSavedDiagram() {
     altTextTitle: 'Custom diagram title',
     altTextDescription: 'Accessible description',
     load: vi.fn(),
-    getRange: vi.fn().mockReturnValue({ insertOoxml: insertPicture }),
+    getRange: vi.fn().mockReturnValue({
+      insertOoxml: insertPicture,
+      insertInlinePictureFromBase64: vi.fn(),
+    }),
   }
   const pictures = { items: [picture], load: vi.fn() }
   const control = {
@@ -79,6 +88,116 @@ function mockSavedDiagram() {
     getByTag, getSelection, insertPicture, replacement, select, context,
   }
 }
+
+describe('lightweight native PNG insertion', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each([
+    { pixels: [864, 432], frame: [324, 162], native: true },
+    { pixels: [1536, 864], frame: [468, 263.25], native: true },
+    { pixels: [864, 1152], frame: [324, 432], native: true },
+    { pixels: [1537, 432], frame: [324, 162], native: false },
+    { pixels: [432, 1537], frame: [162, 324], native: false },
+    { pixels: [1536, 1536], frame: [324, 324], native: false },
+    { pixels: [864, 432], frame: [469, 234.5], native: false },
+    { pixels: [864, 1155], frame: [324, 433], native: false },
+  ])('routes $pixels pixels in a $frame frame to native=$native', async ({ pixels, frame, native }) => {
+    vi.mocked(getPngDimensions).mockReturnValue({ width: pixels[0], height: pixels[1] })
+    const mock = mockSavedDiagram()
+    mock.picture.width = frame[0]
+    mock.picture.altTextTitle = ''
+    mock.picture.altTextDescription = ''
+    const range = { select: vi.fn() }
+    const replacement = {
+      width: 0, height: 0, lockAspectRatio: true,
+      altTextTitle: '', altTextDescription: '', getRange: () => range,
+    }
+    const insertNative = vi.fn().mockReturnValue(replacement)
+    mock.picture.getRange.mockReturnValue({
+      insertOoxml: mock.insertPicture,
+      insertInlinePictureFromBase64: insertNative,
+    })
+    const source = 'flowchart LR\nNew --> Content'
+    await updateDiagramById('<svg/>', mock.existing, source, undefined, undefined, false, {
+      base64: transparentPixel, width: frame[0], height: frame[1],
+    })
+    expect(insertNative).toHaveBeenCalledTimes(native ? 1 : 0)
+    expect(mock.insertPicture).toHaveBeenCalledTimes(native ? 0 : 1)
+    if (native) {
+      expect(replacement).toMatchObject({
+        width: frame[0], height: frame[1], lockAspectRatio: true,
+        altTextTitle: '', altTextDescription: '',
+      })
+      expect(readPayloadFromPng(insertNative.mock.calls[0][0])).toMatchObject({ id: mock.existing.id, source })
+      expect(insertNative.mock.calls[0][0]).toBe(
+        setPngPhysicalWidth(embedPayloadInPng(transparentPixel, { ...mock.existing, source }), frame[0]),
+      )
+    }
+    expect(mock.control.delete).not.toHaveBeenCalled()
+    expect(mock.getSelection).not.toHaveBeenCalled()
+    expect(range.select).not.toHaveBeenCalled()
+    expect(mock.settingsAdd).toHaveBeenCalledOnce()
+  })
+
+  it('replaces the new-control placeholder frame without importing OOXML', async () => {
+    vi.mocked(getPngDimensions).mockReturnValue({ width: 864, height: 432 })
+    const pictures = Array.from({ length: 2 }, () => ({
+      width: 0, height: 0, lockAspectRatio: true,
+      altTextTitle: '', altTextDescription: '', getRange: vi.fn().mockReturnValue({}),
+    }))
+    const insertNative = vi.fn().mockReturnValueOnce(pictures[0]).mockReturnValueOnce(pictures[1])
+    const insertOoxml = vi.fn()
+    const control = { insertInlinePictureFromBase64: insertNative, insertOoxml }
+    const sync = vi.fn().mockResolvedValue(undefined)
+    const settingsAdd = vi.fn()
+    vi.stubGlobal('Word', {
+      run: vi.fn(async callback => callback({
+        document: {
+          getSelection: () => ({
+            parentContentControlOrNullObject: { isNullObject: true, load: vi.fn() },
+            insertContentControl: () => control,
+          }),
+          settings: { add: settingsAdd },
+        },
+        sync,
+      })),
+      InsertLocation: { replace: 'Replace' },
+      ContentControlAppearance: { hidden: 'Hidden' },
+    })
+    const payload = createDiagramPayload('flowchart LR\nA --> B', 'png', 'default', 'medium')
+    await insertPngObject({
+      base64: embedPayloadInPng(transparentPixel, payload), width: 100, height: 50,
+    }, payload)
+    expect(insertNative).toHaveBeenCalledTimes(2)
+    expect(insertOoxml).not.toHaveBeenCalled()
+    expect(sync.mock.invocationCallOrder[2]).toBeGreaterThan(insertNative.mock.invocationCallOrder[0])
+    expect(sync.mock.invocationCallOrder[2]).toBeLessThan(insertNative.mock.invocationCallOrder[1])
+    for (const picture of pictures) {
+      expect(picture).toMatchObject({
+        width: 324, height: 162, lockAspectRatio: true,
+        altTextTitle: 'Mermaid diagram', altTextDescription: 'Diagram created with Mermaid Office.',
+      })
+    }
+    expect(readPayloadFromPng(insertNative.mock.calls[1][0])).toEqual(payload)
+    expect(settingsAdd).toHaveBeenCalledWith(getDocumentSettingKey(payload.id), JSON.stringify(payload))
+  })
+
+  it('surfaces native update failures without retrying through a blocking import', async () => {
+    vi.mocked(getPngDimensions).mockReturnValue({ width: 864, height: 432 })
+    const mock = mockSavedDiagram()
+    const insertNative = vi.fn(() => { throw new Error('Native insertion failed') })
+    mock.picture.getRange.mockReturnValue({
+      insertOoxml: mock.insertPicture,
+      insertInlinePictureFromBase64: insertNative,
+    })
+    await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nNew', undefined, undefined, false, {
+      base64: transparentPixel, width: 100, height: 50,
+    })).rejects.toThrow('Native insertion failed')
+    expect(mock.insertPicture).not.toHaveBeenCalled()
+    expect(mock.settingsAdd).not.toHaveBeenCalled()
+    expect(mock.control.delete).not.toHaveBeenCalled()
+  })
+})
 
 describe('Word diagram insertion', () => {
   afterEach(() => vi.unstubAllGlobals())
