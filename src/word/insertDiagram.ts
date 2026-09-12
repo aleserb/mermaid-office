@@ -38,6 +38,32 @@ const DIAGRAM_WIDTHS: Record<DiagramSize, number> = {
   'page-width': 468,
 }
 
+const MAX_RASTER_DIMENSION = 8192
+const MAX_RASTER_PIXELS = 16 * 1024 * 1024
+
+export function getRasterDimensions(
+  width: number,
+  height: number,
+  size?: DiagramSize,
+): { width: number; height: number } {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new Error('Diagram dimensions must be positive finite numbers.')
+  }
+  // Preserve detail in dense diagrams instead of reducing every diagram to its
+  // page width. Small diagrams still get a 4x raster at their intended Word width.
+  const preferredScale = Math.max(2, size ? DIAGRAM_WIDTHS[size] * (96 / 72) * 4 / width : 2)
+  const scale = Math.min(
+    preferredScale,
+    MAX_RASTER_DIMENSION / width,
+    MAX_RASTER_DIMENSION / height,
+    Math.sqrt(MAX_RASTER_PIXELS / width / height),
+  )
+  return {
+    width: Math.max(1, Math.floor(width * scale)),
+    height: Math.max(1, Math.floor(height * scale)),
+  }
+}
+
 export function findVisiblePixelBounds(
   pixels: Uint8ClampedArray,
   width: number,
@@ -133,27 +159,26 @@ export async function rasterizeSvg(
     const bottom = Math.min(height, bounds.top + bounds.height + padding)
     const croppedWidth = right - left
     const croppedHeight = bottom - top
-    const targetWidth = size
-      ? Math.round(DIAGRAM_WIDTHS[size] * (96 / 72) * 2)
-      : croppedWidth
-    const outputScale = Math.min(
-      targetWidth / croppedWidth,
-      4096 / croppedWidth,
-      4096 / croppedHeight,
-    )
+    const logicalWidth = croppedWidth / scale
+    const logicalHeight = croppedHeight / scale
+    const dimensions = getRasterDimensions(logicalWidth, logicalHeight, size)
+    canvas.width = 1
+    canvas.height = 1
     const output = window.document.createElement('canvas')
-    output.width = Math.max(1, Math.round(croppedWidth * outputScale))
-    output.height = Math.max(1, Math.round(croppedHeight * outputScale))
+    output.width = dimensions.width
+    output.height = dimensions.height
     const outputContext = output.getContext('2d')
     if (!outputContext) {
       throw new Error('This browser cannot crop the PNG fallback.')
     }
+    // Rasterize the vector source at the final resolution, not the bounds-probe
+    // bitmap: enlarging that bitmap would add pixels without adding detail.
     outputContext.drawImage(
-      canvas,
-      left,
-      top,
-      croppedWidth,
-      croppedHeight,
+      image,
+      left / scale,
+      top / scale,
+      logicalWidth,
+      logicalHeight,
       0,
       0,
       output.width,
@@ -162,8 +187,8 @@ export async function rasterizeSvg(
 
     return {
       base64: output.toDataURL('image/png').split(',', 2)[1],
-      width: croppedWidth / scale,
-      height: croppedHeight / scale,
+      width: logicalWidth,
+      height: logicalHeight,
     }
   } finally {
     URL.revokeObjectURL(url)

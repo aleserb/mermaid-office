@@ -20,6 +20,12 @@ compatibility strategy, and delivery plan.
 The add-in creates a tightly cropped PNG locally before inserting it into Word.
 Using one image format across desktop and web avoids host-specific SVG sizing
 differences and keeps insertion and update behavior consistent.
+The final PNG is rasterized directly from SVG, targeting 2x the diagram's native
+dimensions or 4x its intended display width, whichever provides more detail.
+Exports are bounded to 8192 pixels per side and about 16.8 megapixels to limit memory use.
+Cropping, displayed Word size, and embedded source metadata are preserved.
+PNG remains a raster format, so extreme zoom can still reveal pixels. Existing
+images gain the higher resolution when a valid edit regenerates them.
 
 ## Development
 

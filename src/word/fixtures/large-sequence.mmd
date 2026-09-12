@@ -1,0 +1,84 @@
+sequenceDiagram
+    participant User
+    participant Browser
+    participant Word
+    participant Addin
+    participant Editor
+    participant Mermaid
+    participant Document
+    participant Storage
+    participant Server
+
+    User->>Browser: Open Word Online
+    Browser->>Word: Load document
+    Word->>Addin: Start add-in
+    Addin->>Server: Load application
+    Server-->>Addin: Return application
+    Addin->>Editor: Initialize editor
+    Editor-->>Addin: Editor ready
+    Addin->>Mermaid: Initialize Mermaid
+    Mermaid-->>Addin: Mermaid ready
+
+    User->>Addin: Click New Diagram
+    Addin->>Editor: Create new document
+    Editor-->>Addin: Editor ready
+
+    User->>Editor: Enter Mermaid source
+    Editor->>Mermaid: Validate source
+    Mermaid-->>Editor: Source is valid
+    Editor->>Mermaid: Render diagram
+    Mermaid-->>Editor: Return SVG
+    Editor->>Browser: Display preview
+    Browser-->>User: Show diagram preview
+
+    User->>Editor: Change diagram source
+    Editor->>Mermaid: Validate source
+    Mermaid-->>Editor: Source is valid
+    Editor->>Mermaid: Render diagram
+    Mermaid-->>Editor: Return SVG
+    Editor->>Browser: Update preview
+    Browser-->>User: Show updated preview
+
+    User->>Addin: Click Insert
+    Addin->>Mermaid: Render final diagram
+    Mermaid-->>Addin: Return SVG
+    Addin->>Document: Insert diagram
+    Document-->>Addin: Diagram inserted
+    Addin->>Storage: Save diagram metadata
+    Storage-->>Addin: Metadata saved
+    Addin-->>User: Diagram inserted
+
+    User->>Document: Select diagram
+    Document-->>Addin: Selection changed
+    Addin->>Document: Find Mermaid ContentControl
+    Document-->>Addin: Return diagram ID
+    Addin->>Storage: Load Mermaid source
+    Storage-->>Addin: Return Mermaid source
+    Addin->>Editor: Open diagram for editing
+    Editor-->>User: Display Mermaid source
+
+    User->>Editor: Modify source
+    Editor->>Mermaid: Validate source
+    Mermaid-->>Editor: Source is valid
+    Editor->>Mermaid: Render diagram
+    Mermaid-->>Editor: Return SVG
+    Editor->>Browser: Display updated preview
+    Browser-->>User: Show updated diagram
+
+    User->>Addin: Click Update
+    Addin->>Mermaid: Render diagram
+    Mermaid-->>Addin: Return SVG
+    Addin->>Document: Replace existing diagram
+    Document-->>Addin: Diagram updated
+    Addin->>Storage: Update Mermaid source
+    Storage-->>Addin: Source updated
+    Addin-->>User: Diagram updated
+
+    User->>Document: Save document
+    Document->>Storage: Persist document
+    Storage-->>Document: Document saved
+
+    User->>Browser: Close Word
+    Browser->>Word: Close document
+    Word-->>Browser: Document closed
+    Browser-->>User: Application closed
