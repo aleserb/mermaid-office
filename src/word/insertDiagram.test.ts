@@ -36,31 +36,17 @@ function readPictureOoxml(xml: string) {
 function mockSavedDiagram() {
   const existing = createDiagramPayload('flowchart LR\nA --> B', 'png', 'forest', 'large')
   const select = vi.fn()
-  const insertionResult = { width: 0, height: 0 }
-  const insertPicture = vi.fn().mockReturnValue(insertionResult)
-  const insertOoxml = vi.fn()
+  const replacement = { select }
+  const insertPicture = vi.fn().mockReturnValue(replacement)
   const picture = {
     width: 287,
-    height: 172.2,
     altTextTitle: 'Custom diagram title',
     altTextDescription: 'Accessible description',
     load: vi.fn(),
-    getRange: vi.fn().mockReturnValue({ insertInlinePictureFromBase64: insertPicture, insertOoxml }),
-  }
-  const replacement = {
-    ...picture,
-    width: 0,
-    height: 0,
-    altTextTitle: '',
-    altTextDescription: '',
-    lockAspectRatio: true,
-    load: vi.fn(),
-    getRange: vi.fn().mockReturnValue({ select }),
+    getRange: vi.fn().mockReturnValue({ insertOoxml: insertPicture }),
   }
   const pictures = { items: [picture], load: vi.fn() }
   const control = {
-    id: 123,
-    load: vi.fn(),
     inlinePictures: pictures,
     delete: vi.fn(),
     select: vi.fn(),
@@ -68,46 +54,27 @@ function mockSavedDiagram() {
     insertOoxml: vi.fn(),
   }
   const controls = { items: [control], load: vi.fn() }
-  const collectionPicture = { ...replacement }
-  const resizedPictures = { items: [collectionPicture], load: vi.fn() }
-  const resizedControl = { ...control, load: vi.fn(), inlinePictures: resizedPictures }
-  const resizedControls = { items: [resizedControl], load: vi.fn() }
   const setting = { isNullObject: false, value: JSON.stringify(existing), load: vi.fn() }
   const settingsAdd = vi.fn()
-  const getByTag = vi.fn().mockReturnValueOnce(controls).mockReturnValue(resizedControls)
-  const getById = vi.fn().mockReturnValue({
-    inlinePictures: { getFirst: vi.fn().mockReturnValue(replacement) },
-  })
+  const getByTag = vi.fn().mockReturnValue(controls)
   const getSelection = vi.fn(() => {
     throw new Error('The cursor is on an unrelated diagram; selection must not be read.')
   })
   const context = {
     document: {
       getSelection,
-      contentControls: { getByTag, getById },
+      contentControls: { getByTag },
       settings: { add: settingsAdd, getItemOrNullObject: vi.fn().mockReturnValue(setting) },
     },
     sync: vi.fn().mockResolvedValue(undefined),
   }
-  const resizeContext = { document: context.document, sync: vi.fn().mockResolvedValue(undefined) }
-  const afterInsert = vi.fn()
-  const run = vi.fn()
-    .mockImplementationOnce(async (callback) => {
-      const result = await callback(context)
-      afterInsert()
-      return result
-    })
-    .mockImplementation(async (callback) => callback(resizeContext))
   vi.stubGlobal('Word', {
-    run,
+    run: vi.fn(async (callback) => callback(context)),
     InsertLocation: { replace: 'Replace' },
   })
   return {
     existing, picture, pictures, control, controls, setting, settingsAdd,
     getByTag, getSelection, insertPicture, replacement, select, context,
-    resizedPictures, resizedControl, resizedControls, resizeContext, afterInsert, run,
-    insertionResult, insertOoxml,
-    getById,
   }
 }
 
@@ -508,22 +475,15 @@ describe('Word diagram updates by saved ID', () => {
     expect(mock.getByTag).toHaveBeenCalledWith(getContentControlTag(mock.existing.id))
     expect(mock.control).toHaveProperty('placeholderText', ' ')
     expect(mock.insertPicture).toHaveBeenCalledExactlyOnceWith(
-      setPngPhysicalWidth(embedPayloadInPng(transparentPixel, payload), width), 'Replace',
+      expect.any(String), 'Replace',
     )
-    expect(mock.replacement).toMatchObject({
+    const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
+    expect(replacement).toEqual({
+      base64: setPngPhysicalWidth(embedPayloadInPng(transparentPixel, payload), width),
       width, height: width * 0.6,
       altTextTitle: mock.picture.altTextTitle,
       altTextDescription: mock.picture.altTextDescription,
-      lockAspectRatio: true,
     })
-    expect(mock.run).toHaveBeenCalledTimes(2)
-    expect(mock.getByTag).toHaveBeenCalledTimes(2)
-    expect(mock.getById).toHaveBeenCalledExactlyOnceWith(123)
-    expect(mock.replacement.load).toHaveBeenCalledWith('width,height')
-    expect(mock.insertionResult).toEqual({ width: 0, height: 0 })
-    expect(mock.resizedPictures.items[0].width).toBe(0)
-    expect(mock.picture.width).toBe(287)
-    expect(mock.insertOoxml).not.toHaveBeenCalled()
     expect(mock.settingsAdd).toHaveBeenCalledWith(getDocumentSettingKey(mock.existing.id), JSON.stringify(payload))
     expect(mock.getSelection).not.toHaveBeenCalled()
     expect(mock.select).not.toHaveBeenCalled()
@@ -567,9 +527,10 @@ describe('Word diagram updates by saved ID', () => {
     const mock = mockSavedDiagram()
     mock.setting.isNullObject = true
     await updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', 'dark', 'small', true, raster)
-    const payload = readPayloadFromPng(mock.insertPicture.mock.calls[0][0])
+    const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
+    const payload = readPayloadFromPng(replacement.base64)
     expect(payload).toEqual({ ...mock.existing, source: 'flowchart LR\nC', theme: 'dark', size: 'small' })
-    expect(mock.replacement.width).toBe(216)
+    expect(replacement.width).toBe(216)
     expect(mock.settingsAdd).toHaveBeenCalledWith(getDocumentSettingKey(mock.existing.id), JSON.stringify(payload))
   })
 
@@ -578,58 +539,17 @@ describe('Word diagram updates by saved ID', () => {
     mock.picture.altTextTitle = ''
     mock.picture.altTextDescription = ''
     await updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', 'dark', 'small', false, raster)
-    expect(mock.replacement).toMatchObject({
+    const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
+    expect(replacement).toMatchObject({
       width: 287, height: 287 * 0.6, altTextTitle: '', altTextDescription: '',
     })
-    expect(readPayloadFromPng(mock.insertPicture.mock.calls[0][0])).toMatchObject({
+    expect(readPayloadFromPng(replacement.base64)).toMatchObject({
       theme: 'dark', size: 'small', source: 'flowchart LR\nC', format: 'png',
     })
 
   })
 
-  it('finishes native insertion before resizing or saving metadata in a fresh context', async () => {
-    const mock = mockSavedDiagram()
-    mock.afterInsert.mockImplementation(() => {
-      expect(mock.context.sync).toHaveBeenCalledTimes(4)
-      expect(mock.resizeContext.sync).not.toHaveBeenCalled()
-      expect(mock.replacement.width).toBe(0)
-      expect(mock.insertionResult.width).toBe(0)
-      expect(mock.settingsAdd).not.toHaveBeenCalled()
-    })
-    await updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster)
-    expect(mock.afterInsert).toHaveBeenCalledOnce()
-    expect(mock.resizeContext.sync).toHaveBeenCalledTimes(4)
-    expect(mock.replacement.width).toBe(287)
-    expect(mock.settingsAdd).toHaveBeenCalledOnce()
-  })
-
-  it.each([
-    ['deleted control', 'deleted'],
-    ['duplicate control', 'Multiple Mermaid diagrams'],
-    ['replaced control', 'replaced while updating'],
-    ['missing picture', 'exactly one picture'],
-    ['extra picture', 'exactly one picture'],
-    ['changed source', 'changed in another editor'],
-  ])('revalidates the target after insertion: %s', async (scenario, message) => {
-    const mock = mockSavedDiagram()
-    mock.afterInsert.mockImplementation(() => {
-      if (scenario === 'deleted control') mock.resizedControls.items = []
-      if (scenario === 'duplicate control') mock.resizedControls.items.push(mock.resizedControl)
-      if (scenario === 'replaced control') mock.resizedControl.id = 456
-      if (scenario === 'missing picture') mock.resizedPictures.items = []
-      if (scenario === 'extra picture') mock.resizedPictures.items.push(mock.replacement)
-      if (scenario === 'changed source') mock.setting.value = JSON.stringify({ ...mock.existing, source: 'flowchart LR\nZ' })
-    })
-    await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster))
-      .rejects.toThrow(message)
-    expect(mock.insertPicture).toHaveBeenCalledOnce()
-    expect(mock.replacement.width).toBe(0)
-    expect(mock.getById).not.toHaveBeenCalled()
-    expect(mock.settingsAdd).not.toHaveBeenCalled()
-    expect(mock.control.delete).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a failed native replacement without starting the sizing request', async () => {
+  it('surfaces a failed OOXML replacement without deleting the diagram control', async () => {
     const mock = mockSavedDiagram()
     mock.context.sync
       .mockResolvedValueOnce(undefined)
@@ -638,22 +558,6 @@ describe('Word diagram updates by saved ID', () => {
       .mockRejectedValueOnce(new Error('Word could not replace the picture'))
     await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster))
       .rejects.toThrow('Word could not replace the picture')
-    expect(mock.control.delete).not.toHaveBeenCalled()
-    expect(mock.select).not.toHaveBeenCalled()
-    expect(mock.run).toHaveBeenCalledOnce()
-    expect(mock.settingsAdd).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a failure from the final sizing request', async () => {
-    const mock = mockSavedDiagram()
-    mock.resizeContext.sync
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('Word could not resize the picture'))
-    await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster))
-      .rejects.toThrow('Word could not resize the picture')
-    expect(mock.run).toHaveBeenCalledTimes(2)
     expect(mock.control.delete).not.toHaveBeenCalled()
     expect(mock.select).not.toHaveBeenCalled()
   })

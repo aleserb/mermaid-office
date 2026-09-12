@@ -367,24 +367,6 @@ function replaceDiagramPicture(
   applySize: boolean,
   altText: Pick<Word.InlinePicture, 'altTextTitle' | 'altTextDescription'> = existingPicture,
 ): Word.Range {
-  const { png, ...properties } = prepareDiagramPicture(existingPicture, raster, payload, applySize, altText)
-  // Replace only the picture: deleting its control can invalidate Word's range
-  // and remove surrounding text or other diagrams.
-  const replacement = existingPicture.getRange().insertOoxml(
-    createDiagramPictureOoxml(png, properties),
-    Word.InsertLocation.replace,
-  )
-  context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
-  return replacement
-}
-
-function prepareDiagramPicture(
-  existingPicture: Word.InlinePicture,
-  raster: RasterizedDiagram,
-  payload: DiagramPayload,
-  applySize: boolean,
-  altText: Pick<Word.InlinePicture, 'altTextTitle' | 'altTextDescription'> = existingPicture,
-) {
   const dimensions = applySize
     ? fitDiagram(raster.width, raster.height, DIAGRAM_WIDTHS[payload.size], 650, true)
     : {
@@ -395,55 +377,18 @@ function prepareDiagramPicture(
     embedPayloadInPng(raster.base64, payload),
     dimensions.width,
   )
-  return {
-    png,
-    ...dimensions,
-    altTextTitle: altText.altTextTitle,
-    altTextDescription: altText.altTextDescription,
-  }
-}
-
-async function getDiagramUpdateTarget(
-  context: Word.RequestContext,
-  existing: DiagramPayload,
-  expectedControlId?: number,
-) {
-  const controls = context.document.contentControls.getByTag(getContentControlTag(existing.id))
-  controls.load('items')
-  await context.sync()
-  if (controls.items.length === 0) {
-    throw new Error('The Mermaid diagram was deleted or can no longer be found.')
-  }
-  if (controls.items.length !== 1) {
-    throw new Error('Multiple Mermaid diagrams share this ID. Select the diagram again to edit it.')
-  }
-
-  const control = controls.items[0]
-  const pictures = control.inlinePictures
-  const setting = context.document.settings.getItemOrNullObject(getDocumentSettingKey(existing.id))
-  control.load('id')
-  pictures.load('items')
-  setting.load('value')
-  await context.sync()
-  if (expectedControlId !== undefined && control.id !== expectedControlId) {
-    throw new Error('The Mermaid diagram was replaced while updating. Select it again to edit it.')
-  }
-  if (pictures.items.length !== 1) {
-    throw new Error('The Mermaid diagram must contain exactly one picture to update it safely.')
-  }
-  if (!setting.isNullObject) {
-    const stored = parseDiagramPayload(String(setting.value))
-    if (
-      stored.id !== existing.id ||
-      stored.source !== existing.source ||
-      stored.theme !== existing.theme ||
-      stored.size !== existing.size ||
-      stored.format !== existing.format
-    ) {
-      throw new Error('The Mermaid diagram changed in another editor. Select it again before updating.')
-    }
-  }
-  return { control, picture: pictures.items[0] }
+  // Replace only the picture: deleting its control can invalidate Word's range
+  // and remove surrounding text or other diagrams.
+  const replacement = existingPicture.getRange().insertOoxml(
+    createDiagramPictureOoxml(png, {
+      ...dimensions,
+      altTextTitle: altText.altTextTitle,
+      altTextDescription: altText.altTextDescription,
+    }),
+    Word.InsertLocation.replace,
+  )
+  context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
+  return replacement
 }
 
 export async function updateDiagramById(
@@ -461,32 +406,44 @@ export async function updateDiagramById(
 
   const payload: DiagramPayload = { ...existing, source, theme, size, format: 'png' }
   const raster = renderedRaster ?? (await rasterizeSvg(svg, size))
-  const update = await Word.run(async (context) => {
-    const { control, picture } = await getDiagramUpdateTarget(context, existing)
+
+  await Word.run(async (context) => {
+    const controls = context.document.contentControls.getByTag(getContentControlTag(existing.id))
+    controls.load('items')
+    await context.sync()
+    if (controls.items.length === 0) {
+      throw new Error('The Mermaid diagram was deleted or can no longer be found.')
+    }
+    if (controls.items.length !== 1) {
+      throw new Error('Multiple Mermaid diagrams share this ID. Select the diagram again to edit it.')
+    }
+
+    const pictures = controls.items[0].inlinePictures
+    const setting = context.document.settings.getItemOrNullObject(getDocumentSettingKey(existing.id))
+    pictures.load('items')
+    setting.load('value')
+    await context.sync()
+    if (pictures.items.length !== 1) {
+      throw new Error('The Mermaid diagram must contain exactly one picture to update it safely.')
+    }
+    if (!setting.isNullObject) {
+      const stored = parseDiagramPayload(String(setting.value))
+      if (
+        stored.id !== existing.id ||
+        stored.source !== existing.source ||
+        stored.theme !== existing.theme ||
+        stored.size !== existing.size ||
+        stored.format !== existing.format
+      ) {
+        throw new Error('The Mermaid diagram changed in another editor. Select it again before updating.')
+      }
+    }
+
+    const picture = pictures.items[0]
     picture.load('altTextTitle,altTextDescription,width')
     await context.sync()
-    const { png, ...properties } = prepareDiagramPicture(picture, raster, payload, applySize)
-    suppressDiagramPlaceholder(control)
-    picture.getRange().insertInlinePictureFromBase64(png, Word.InsertLocation.replace)
-    await context.sync()
-    return { controlId: control.id, properties }
-  })
-
-  // Insertion results and collection items can retain old bitmap geometry.
-  // Resolve the picture directly by control ID in a new request before sizing.
-  // This avoids OOXML imports and their blocking dialog during live edits.
-  await Word.run(async (context) => {
-    await getDiagramUpdateTarget(context, existing, update.controlId)
-    const picture = context.document.contentControls.getById(update.controlId).inlinePictures.getFirst()
-    picture.load('width,height')
-    await context.sync()
-    picture.lockAspectRatio = false
-    picture.width = update.properties.width
-    picture.height = update.properties.height
-    picture.lockAspectRatio = true
-    picture.altTextTitle = update.properties.altTextTitle
-    picture.altTextDescription = update.properties.altTextDescription
-    context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
+    suppressDiagramPlaceholder(controls.items[0])
+    replaceDiagramPicture(context, picture, raster, payload, applySize)
     await context.sync()
   })
   return 'png'
