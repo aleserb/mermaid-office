@@ -18,6 +18,13 @@ export interface RasterizedDiagram {
   height: number
 }
 
+interface PixelBounds {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
 const DIAGRAM_WIDTHS: Record<DiagramSize, number> = {
   small: 216,
   medium: 324,
@@ -42,6 +49,38 @@ function setSelectedData(data: string, coercionType: Office.CoercionType): Promi
       }
     })
   })
+}
+
+export function findVisiblePixelBounds(
+  pixels: Uint8ClampedArray,
+  width: number,
+  height: number,
+): PixelBounds | null {
+  let left = width
+  let top = height
+  let right = -1
+  let bottom = -1
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      if (pixels[(y * width + x) * 4 + 3] === 0) {
+        continue
+      }
+      left = Math.min(left, x)
+      top = Math.min(top, y)
+      right = Math.max(right, x)
+      bottom = Math.max(bottom, y)
+    }
+  }
+
+  return right < left
+    ? null
+    : {
+        left,
+        top,
+        width: right - left + 1,
+        height: bottom - top + 1,
+      }
 }
 
 export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
@@ -74,10 +113,46 @@ export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
 
     context.scale(scale, scale)
     context.drawImage(image, 0, 0, sourceWidth, sourceHeight)
+
+    const bounds = findVisiblePixelBounds(
+      context.getImageData(0, 0, width, height).data,
+      width,
+      height,
+    )
+    if (!bounds) {
+      throw new Error('The rendered diagram does not contain any visible content.')
+    }
+
+    const padding = Math.max(1, Math.round(scale * 4))
+    const left = Math.max(0, bounds.left - padding)
+    const top = Math.max(0, bounds.top - padding)
+    const right = Math.min(width, bounds.left + bounds.width + padding)
+    const bottom = Math.min(height, bounds.top + bounds.height + padding)
+    const croppedWidth = right - left
+    const croppedHeight = bottom - top
+    const output = window.document.createElement('canvas')
+    output.width = croppedWidth
+    output.height = croppedHeight
+    const outputContext = output.getContext('2d')
+    if (!outputContext) {
+      throw new Error('This browser cannot crop the PNG fallback.')
+    }
+    outputContext.drawImage(
+      canvas,
+      left,
+      top,
+      croppedWidth,
+      croppedHeight,
+      0,
+      0,
+      croppedWidth,
+      croppedHeight,
+    )
+
     return {
-      base64: canvas.toDataURL('image/png').split(',', 2)[1],
-      width: sourceWidth,
-      height: sourceHeight,
+      base64: output.toDataURL('image/png').split(',', 2)[1],
+      width: croppedWidth / scale,
+      height: croppedHeight / scale,
     }
   } finally {
     URL.revokeObjectURL(url)

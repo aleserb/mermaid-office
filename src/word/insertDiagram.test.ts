@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fitDiagram,
+  findVisiblePixelBounds,
   insertPngObject,
   isSvgInsertionSupported,
 } from './insertDiagram'
@@ -42,6 +43,20 @@ describe('isSvgInsertionSupported', () => {
 
     expect(isSvgInsertionSupported()).toBe(true)
     expect(isSetSupported).toHaveBeenCalledWith('ImageCoercion', '1.2')
+  })
+
+  it('finds the visible alpha bounds for PNG cropping', () => {
+    const pixels = new Uint8ClampedArray(4 * 4 * 3)
+    pixels[(1 * 4 + 1) * 4 + 3] = 255
+    pixels[(2 * 4 + 3) * 4 + 3] = 128
+
+    expect(findVisiblePixelBounds(pixels, 4, 3)).toEqual({
+      left: 1,
+      top: 1,
+      width: 3,
+      height: 2,
+    })
+    expect(findVisiblePixelBounds(new Uint8ClampedArray(16), 2, 2)).toBeNull()
   })
 
   it('commits a content control before inserting a PNG into it', async () => {
