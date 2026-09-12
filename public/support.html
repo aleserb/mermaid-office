@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Help, requirements, troubleshooting, and contact information for the Mermaid Office Word add-in.">
+  <title>Support - Mermaid Office</title>
+  <link rel="stylesheet" href="./legal.css">
+</head>
+<body>
+  <nav aria-label="Product information">
+    <a href="./support.html" aria-current="page">Support</a>
+    <a href="./privacy.html">Privacy policy</a>
+    <a href="./eula.html">EULA</a>
+    <a href="https://github.com/aleserb/mermaid-office/blob/main/LICENSE">MIT license</a>
+  </nav>
+  <main>
+    <h1>Mermaid Office support</h1>
+    <p>Create and edit Mermaid diagrams in Microsoft Word. Rendering happens
+      locally; documents contain PNG pictures that recipients can view without
+      the add-in. Mermaid Office is free, open-source software published by
+      Aleksandr Serbin (aleserb).</p>
+
+    <h2>Get help or report a problem</h2>
+    <p><a href="https://github.com/aleserb/mermaid-office/issues/new">Open a support issue</a>
+      or <a href="https://github.com/aleserb/mermaid-office/issues">browse existing issues</a>.
+      Include your Word platform and version, browser if applicable, the steps
+      to reproduce the problem, and a minimal non-sensitive example.</p>
+    <p>Submitting an issue requires a GitHub account. The tracker is public:
+      do not upload private documents, credentials, personal information, or
+      confidential diagram source. Redact screenshots and logs. Support is
+      best-effort, with no guaranteed response time.</p>
+
+    <h2>Requirements and installation</h2>
+    <p>The add-in targets modern Word on the web, Windows, and macOS with WordApi
+      1.4 and ImageCoercion 1.1. The separate settings window requires DialogApi
+      1.2. An internet connection is normally needed to load the hosted app and
+      Office.js; fully offline installation is not provided. No separate Mermaid
+      Office account, subscription, or rendering server is required.</p>
+    <p>Availability of add-ins depends on your Office version and organization
+      policy. For developer sideloading and deployment information, see the
+      <a href="https://github.com/aleserb/mermaid-office#readme">project README</a>
+      and <a href="https://learn.microsoft.com/en-us/office/dev/add-ins/testing/sideload-office-add-ins-for-testing">Microsoft's sideloading instructions</a>.
+      A published Marketplace installation link will be added here after approval.</p>
+
+    <h2>Using the add-in</h2>
+    <ol>
+      <li>Open Insert &gt; Mermaid in Word to show the editor pane.</li>
+      <li>Place the cursor on a blank line, enter valid Mermaid code, and choose Insert.</li>
+      <li>Select an existing Mermaid picture to load its source. Small diagrams
+        update after a typing pause; large diagrams require the Update button.</li>
+      <li>Use the gear for theme, layout, typography, and image quality.
+        Apply saves the selected settings and any pending source edits.</li>
+    </ol>
+    <p>The document-info icon opens the
+      <a href="https://mermaid.js.org/intro/syntax-reference.html">Mermaid syntax reference</a>.
+      Errors below the editor prevent changes to the last valid picture.</p>
+
+    <h2>Common issues</h2>
+    <ul>
+      <li><strong>Word shows a loading dialog:</strong> larger picture imports can
+        trigger Word's own progress UI. Use Auto or Standard quality and explicit
+        Update for large diagrams.</li>
+      <li><strong>Update is disabled:</strong> there may be no unsaved changes,
+        invalid source, a render or Word operation in progress, or a pending
+        selection decision. Resolve the message in the pane first.</li>
+      <li><strong>Settings will not open:</strong> allow Office's dialog request
+        and check your Office version and network access. The pane displays
+        opening errors.</li>
+      <li><strong>Copied pictures are no longer editable:</strong> some paste
+        paths and image tools remove embedded source metadata. Keep the original
+        document or a separate copy of the Mermaid source.</li>
+      <li><strong>An update is not visible:</strong> close and reopen the pane.
+        Sideloaded manifest changes may require removing and uploading the
+        manifest again.</li>
+    </ul>
+  </main>
+  <footer>See the <a href="./privacy.html">privacy policy</a> and
+    <a href="./eula.html">end-user license agreement</a>.</footer>
+</body>
+</html>

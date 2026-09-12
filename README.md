@@ -4,8 +4,23 @@ Mermaid Office is a client-side Microsoft Word add-in for creating and editing
 Mermaid diagrams. Mermaid renders locally in the Office task pane; no
 application server receives diagram source or document content.
 
-See [design.md](design.md) for the product goals, user experience, architecture,
-compatibility strategy, and delivery plan.
+See [PUBLISHING.md](PUBLISHING.md) for Microsoft Marketplace listing information,
+public policy URLs, certification instructions, and the submission checklist.
+
+## License, privacy, and support
+
+The project's original code and documentation are licensed under the
+[MIT License](LICENSE). Third-party components retain their own licenses.
+Production builds include generated
+[third-party license notices](https://aleserb.github.io/mermaid-office/third-party-licenses.txt).
+
+- [Privacy policy](https://aleserb.github.io/mermaid-office/privacy.html)
+- [End-user license agreement (EULA)](https://aleserb.github.io/mermaid-office/eula.html)
+- [Support and troubleshooting](https://aleserb.github.io/mermaid-office/support.html)
+
+These standalone pages are served from `public/` and do not require Word,
+Office.js, or an account to read. Diagram source is embedded in original diagram
+images and document metadata; sharing those files may also share the source.
 
 ## Technology
 

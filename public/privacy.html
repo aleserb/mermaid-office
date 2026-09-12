@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="How Mermaid Office handles document content, local preferences, hosting requests, and support information.">
+  <title>Privacy policy - Mermaid Office</title>
+  <link rel="stylesheet" href="./legal.css">
+</head>
+<body>
+  <nav aria-label="Product information">
+    <a href="./support.html">Support</a>
+    <a href="./privacy.html" aria-current="page">Privacy policy</a>
+    <a href="./eula.html">EULA</a>
+    <a href="https://github.com/aleserb/mermaid-office/blob/main/LICENSE">MIT license</a>
+  </nav>
+  <main>
+    <h1>Mermaid Office privacy policy</h1>
+    <p>Effective date: September 13, 2026</p>
+    <p>Mermaid Office is a Microsoft Word add-in published by Aleksandr Serbin
+      (GitHub: <a href="https://github.com/aleserb">aleserb</a>). It renders Mermaid
+      source into editable diagram pictures. This policy covers the add-in and
+      its public information pages, not only this website.</p>
+
+    <h2>Document content stays in your editing environment</h2>
+    <p>Rendering takes place locally in the add-in's browser or Office webview.
+      Mermaid Office does not operate an application server, require a separate
+      account, or send your document or Mermaid source to a rendering service.
+      The publisher does not automatically receive your document content.</p>
+    <p>The add-in requests Word's ReadWriteDocument permission to inspect the
+      selection and diagram metadata, insert and replace pictures and their
+      content controls, and save editable source and settings in the document.
+      Source, a generated diagram identifier, and rendering settings are stored
+      in Word document settings and embedded in generated PNG pictures. Legacy
+      diagrams can also contain source in SVG metadata.</p>
+    <p><strong>Sharing a diagram can share its source.</strong> People who receive
+      a document or an original diagram image may recover the embedded source,
+      even without this add-in. Do not put secrets in diagram source on the
+      assumption that only the visible picture will be shared.</p>
+    <p>Word, OneDrive, SharePoint, or another storage provider may save, sync,
+      share, or back up your document according to your settings and their
+      policies. Those services are separate from Mermaid Office.</p>
+
+    <h2>Local preferences and temporary data</h2>
+    <p>The add-in stores your preferred diagram theme and rendering settings in
+      browser/webview local storage, using the keys
+      <code>mermaid-office:preferred-theme</code> and
+      <code>mermaid-office:preferred-settings</code>. These preferences are used
+      for new diagrams; diagram source is not stored in these preference keys.
+      Unsaved edits and working render data are held in memory.</p>
+    <p>Mermaid Office does not add advertising, analytics, tracking cookies, or
+      automatic crash-report uploads. Diagnostic messages may appear locally in
+      the browser or webview console. Review and redact logs before sharing them.</p>
+
+    <h2>Network requests and third-party services</h2>
+    <p>An internet connection is normally needed to load the add-in and its
+      assets from GitHub Pages and Office.js from Microsoft's CDN. These providers
+      may process technical request information such as your IP address, browser
+      information, requested URL, and access time under their own policies.
+      The publisher does not use these requests to build advertising profiles.</p>
+    <p>Links to Mermaid documentation and GitHub open external services. If your
+      Mermaid source references external resources, such as remotely hosted
+      images, the renderer or browser may request those URLs. The resource host
+      can receive technical request information and information included in the
+      URL. Avoid confidential data in external resource URLs.</p>
+    <p>For those services, see the
+      <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub privacy statement</a>
+      and the <a href="https://privacy.microsoft.com/en-us/privacystatement">Microsoft privacy statement</a>.
+      Microsoft may also process Office usage and diagnostic data independently
+      of the add-in.</p>
+
+    <h2>Information you provide for support</h2>
+    <p>If you open a GitHub issue, the publisher can see your GitHub identity and
+      whatever information you submit. This information is used to respond,
+      diagnose problems, and maintain the add-in. Issues and attachments in the
+      public repository are public; a GitHub account is needed to submit an issue.
+      Do not post private documents, credentials, confidential diagram source, or
+      personal information. Use a minimal, non-sensitive example instead.</p>
+    <p>Support discussions may remain in the public issue history. The publisher
+      does not sell support information or use it for advertising. GitHub controls
+      its own retention, account processing, and infrastructure, which may involve
+      processing in countries other than yours.</p>
+
+    <h2>Retention, deletion, and your choices</h2>
+    <p>Local preferences remain until you clear site data in the browser or Office
+      webview. Unsaved in-memory edits are not persisted by the add-in and may be
+      lost when the pane is closed or reloaded. Removing the
+      add-in does not remove diagram source already stored in documents or images.</p>
+    <p>Saved metadata follows the lifetime of your documents, images, versions,
+      backups, and shared copies. Some document metadata is retained for Undo
+      and source recovery even after a picture is deleted. Removing a visible
+      picture alone is not a guarantee that all source metadata is gone.
+      Control or delete the relevant files and copies through your document
+      storage provider when complete removal is needed. The publisher cannot
+      access or delete those copies for you.</p>
+    <p>Depending on applicable law, you may have rights to request access,
+      correction, or deletion of personal information you supplied for support,
+      or to object to its use. Contact the publisher through the
+      <a href="https://github.com/aleserb/mermaid-office/issues">support issue tracker</a>
+      with a non-sensitive request or a link to the relevant issue. Do not post
+      identity documents or the information you want removed. GitHub may need
+      to handle requests concerning its own systems. You may also have a right
+      to complain to your local data protection authority.</p>
+
+    <h2>Policy changes and contact</h2>
+    <p>Changes will be published on this page with an updated effective date.
+      Previous versions are available in the repository history. For questions,
+      visit the <a href="./support.html">Mermaid Office support page</a>.</p>
+  </main>
+  <footer>Mermaid Office is an independent project, not a Microsoft product.</footer>
+</body>
+</html>
