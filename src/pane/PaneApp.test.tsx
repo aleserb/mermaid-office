@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import { EditorView } from '@codemirror/view'
 import userEvent from '@testing-library/user-event'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { PaneApp } from './PaneApp'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
 import { createDiagramPayload } from '../metadata/payload'
@@ -25,6 +25,19 @@ vi.mock('../word/selection', () => ({
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   }),
 }))
+
+beforeEach(() => {
+  // jsdom has no layout; Tabster otherwise treats every control as invisible
+  // and asynchronously hides the active modal from the accessibility tree.
+  vi.spyOn(document.body, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1024, 768))
+  vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+    if (!this.isConnected) return null
+    for (let element: HTMLElement | null = this; element; element = element.parentElement) {
+      if (getComputedStyle(element).display === 'none') return null
+    }
+    return this.parentElement
+  })
+})
 
 afterEach(() => {
   cleanup()
@@ -84,13 +97,15 @@ it('shows a light code-only editor without a preview and does not insert automat
 
 it('opens settings from the keyboard and discards edits on Escape and Cancel', async () => {
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
-  const user = userEvent.setup()
+  // Let Tabster's delayed visibility checks run rather than racing past them.
+  const user = userEvent.setup({ delay: 100 })
   render(<PaneApp />)
   await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
   const gear = screen.getByRole('button', { name: 'Diagram settings' })
   gear.focus()
   await user.keyboard('{Enter}')
   expect(await screen.findByRole('dialog', { name: 'Diagram settings' })).toBeInTheDocument()
+  expect(screen.getByRole('dialog')).not.toHaveAttribute('aria-hidden', 'true')
   const originalTheme = (await screen.findByRole('combobox', { name: 'Diagram theme' }) as HTMLSelectElement).value
   await user.selectOptions(screen.getByRole('combobox', { name: 'Diagram theme' }), 'dark')
   await user.keyboard('{Escape}')
