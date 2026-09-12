@@ -117,6 +117,7 @@ export function DialogApp() {
               <div className="editor-heading">
                 <Text weight="semibold">Diagram source</Text>
                   <div className="diagram-options">
+                    <SyntaxHelpLink />
                     <ThemePicker
                       value={theme}
                       onChange={(value) => {
@@ -124,7 +125,6 @@ export function DialogApp() {
                         setPreferredTheme(value)
                       }}
                     />
-                    <SyntaxHelpLink />
                   </div>
               </div>
                 <MermaidEditor
