@@ -20,6 +20,18 @@
   gap: 8px;
 }
 
+.pane-footer {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.pane-footer .syntax-help {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
 .pane-shell .editor-shell {
   min-height: 200px;
 }

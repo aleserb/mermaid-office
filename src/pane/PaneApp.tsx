@@ -24,8 +24,8 @@ export function PaneApp() {
   const busy = !editor.ready || editor.writing || editor.loadingSelection
   const status = editor.writing
     ? 'Writing diagram to Word...'
-    : editor.target
-      ? editor.dirty ? 'Changes not yet written to Word.' : 'Diagram is up to date in Word.'
+    : editor.target && editor.dirty
+      ? 'Changes not yet written to Word.'
       : ''
 
   return (
@@ -33,25 +33,11 @@ export function PaneApp() {
       <main className="pane-shell">
         <header className="pane-header">
           <div className="diagram-options">
-            <SyntaxHelpLink />
             <ThemePicker value={editor.draft.theme} onChange={editor.changeTheme} />
           </div>
-          {(!editor.target || editor.canRetry) && <div className="pane-actions">
-            {!editor.target && (
-              <Button appearance="primary" disabled={!editor.canInsert} onClick={() => void editor.insert()}>
-                Insert diagram
-              </Button>
-            )}
-            {editor.canRetry && (
-              <Button disabled={busy} onClick={editor.retry}>Retry update</Button>
-            )}
-          </div>}
         </header>
 
         {status && <Caption1 role="status">{status}</Caption1>}
-        {editor.target && (
-          <Caption1>Select another diagram to edit it, or a blank line to insert a new one.</Caption1>
-        )}
         {editor.wordError && (
           <MessageBar intent="error">
             <MessageBarBody>{editor.wordError}</MessageBarBody>
@@ -70,6 +56,20 @@ export function PaneApp() {
             historyKey={String(editor.historyKey)}
           />
         ) : <Spinner label="Loading selected diagram" />}
+
+        <footer className="pane-footer">
+          {(!editor.target || editor.canRetry) && <div className="pane-actions">
+            {!editor.target && (
+              <Button appearance="primary" disabled={!editor.canInsert} onClick={() => void editor.insert()}>
+                Insert diagram
+              </Button>
+            )}
+            {editor.canRetry && (
+              <Button disabled={busy} onClick={editor.retry}>Retry update</Button>
+            )}
+          </div>}
+          <SyntaxHelpLink />
+        </footer>
 
         {editor.pending && <Dialog open onOpenChange={(_, data) => {
           if (!data.open) editor.keepEditing()
