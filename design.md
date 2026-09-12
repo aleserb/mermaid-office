@@ -5,13 +5,13 @@
 Mermaid Office is a lightweight, client-side Microsoft Word add-in for creating,
 viewing, copying, and editing Mermaid diagrams as document-native pictures.
 
-The add-in should feel similar to Word's built-in Drawing experience:
+The add-in uses a focused task-pane editing experience:
 
 - a **Mermaid** command is available from the **Insert** ribbon;
 - diagrams appear in the document as ordinary pictures;
 - selecting a Mermaid diagram allows a user with the add-in to edit its source;
-- editing happens in a focused dialog with source and live preview;
-- saving replaces the rendered picture without changing its intended size or
+- editing happens in a code-only task pane with live preview directly in Word;
+- valid edits replace the rendered picture without changing its intended size or
   document position.
 
 People who do not have Mermaid Office must still be able to view, print, export,
@@ -26,11 +26,11 @@ want to edit the Mermaid source.
 4. Display diagrams as SVG where Word supports SVG insertion and as PNG
    otherwise.
 5. Keep the original Mermaid source with the diagram so it remains editable.
-6. Open a Drawing-like editor dialog for creating or editing a diagram.
+6. Open one code-only task pane for creating or editing a diagram.
 7. Provide Mermaid-oriented syntax highlighting and editing behavior.
 8. Parse continuously, show useful errors, and identify the failing source
    location when Mermaid provides one.
-9. Show a live diagram preview without sending source or document content to a
+9. Show live diagram updates in Word without sending source or document content to a
    server.
 10. Preserve editability when diagrams are copied and pasted within a document
     or between Word documents, where the Word client preserves embedded image
@@ -81,10 +81,11 @@ tests, including Word's package-level fallback behavior.
 
 ### 5.1 Insert a diagram
 
-1. The user selects **Insert > Mermaid**.
-2. Mermaid Office inserts a valid default flowchart at the current selection.
-3. The inserted picture is wrapped in a tagged content control and selected.
-4. The user can keep the default or choose **Edit Mermaid** to customize it.
+1. The user selects **Insert > Mermaid** to open the task pane.
+2. With no diagram selected, the pane shows a default flowchart source.
+3. The user can edit the source, then press **Insert** at an empty document cursor.
+4. The inserted picture is wrapped in a tagged content control. Subsequent valid
+   edits update that picture directly in Word.
 
 The initial source is intentionally simple:
 
@@ -93,9 +94,7 @@ flowchart LR
     A[Start] --> B[Finish]
 ```
 
-A later UX iteration may open the editor before the first insertion, matching
-Word's Drawing dialog more closely. The first milestone favors a fast,
-predictable insert command.
+Opening the pane never inserts a diagram automatically.
 
 ### 5.2 Edit a diagram
 
@@ -111,19 +110,15 @@ Office.js currently permits Word context-menu extensions for text
 objects. Consequently, this exact interaction cannot currently be implemented
 by a cross-platform web add-in.
 
-The supported initial interaction is:
+The supported interaction is:
 
 - select a Mermaid diagram;
 - Word raises `DocumentSelectionChanged`;
-- the add-in resolves `selection.parentContentControlOrNullObject`;
+- the add-in requires a selected inline picture and resolves its parent control;
 - the add-in validates that the content-control tag starts with the supported
   `mermaid-office:` schema marker and extracts the UUID;
-- the add-in enables **Edit Mermaid** in the Mermaid ribbon group with
-  `Office.ribbon.requestUpdate`;
-- the user chooses **Edit Mermaid**, which opens the task pane with the stored
-  source and settings;
-- the task pane offers a larger focused editor dialog for the Drawing-like
-  experience.
+- the open task pane automatically loads the stored source and settings;
+- if the pane is closed, the user opens it using **Insert > Mermaid**.
 
 An image right-click command remains a future enhancement if Microsoft exposes
 that extension point. The product must not emulate a native context menu with
@@ -131,47 +126,37 @@ fragile pointer overlays. When the extension point becomes available, it should
 reuse the same selection resolution and edit command rather than introduce a
 second editing path.
 
-On clients that do not support reliable dynamic ribbon updates, **Edit
-Mermaid** remains enabled. Invoking it with another selection shows a clear
-message and does not modify the document.
+### 5.3 Editor pane
 
-### 5.3 Editor dialog
+The code-only task pane is the sole editor surface:
 
-The task pane first loads the selected diagram and provides a compact editing
-surface. A user can expand it into a focused editor opened with the Office
-Dialog API. The expanded editor visually follows Word's Drawing-style modal:
+- theme selection above the source editor;
+- System UI code font at 12 px;
+- **Insert** at bottom left only for a new diagram;
+- **Mermaid syntax** at bottom right;
+- errors below the code editor, with inline diagnostics where possible;
+- confirmation before switching diagrams with pending edits;
+- explicit retry after a failed Word update.
 
-- title: **Mermaid Diagram**;
-- primary action: **Save and Close**;
-- secondary action: **Discard Changes**;
-- source editor and preview shown side by side on wide screens;
-- stacked editor and preview on narrow screens;
-- current parse error shown near the editor and as an inline diagnostic where
-  possible;
-- keyboard shortcuts for save and close;
-- unsaved-change confirmation before discard or dialog close.
-
-The dialog does not directly manipulate the document. It exchanges structured
-messages with the parent task pane:
+The pane renders Mermaid locally and directly updates Word through Office.js.
+There is no editor dialog, dialog messaging, or separate preview canvas:
 
 ```text
 Word document
     ↕ Office.js
-parent task pane/function runtime
-    ↕ DialogMessageReceived / messageParent
-editor dialog
+code-only task pane
 ```
 
-The parent loads diagram data before opening the dialog. On save, the dialog
-returns validated Mermaid source, theme settings, and rendered SVG. The parent
-performs the Word API update and reports success or failure.
+New diagrams require explicit insertion. Existing diagrams update after a
+600 ms pause in typing. Writes are serialized and stale renders are discarded.
+Live preview changes are real document edits and may create undo/AutoSave entries.
 
 ### 5.4 Error handling
 
-- The preview updates after a short debounce.
-- The last valid preview remains visible while the current source is invalid.
+- The Word picture updates after a short debounce.
+- The last valid picture remains visible while the current source is invalid.
 - Parse errors never overwrite the document.
-- **Save and Close** is disabled while the source is invalid or rendering.
+- **Insert** and live updates are disabled while the source is invalid or rendering.
 - Errors include line and column information when Mermaid exposes it.
 - Word insertion and replacement errors are shown explicitly and leave the
   existing picture unchanged.
@@ -187,7 +172,7 @@ supported built-in themes:
 - Forest
 
 The selected theme is stored with the diagram, not as a global-only setting.
-Changing a theme rerenders the preview and is committed only on save.
+Changing a theme rerenders and updates an inserted diagram after the debounce.
 
 ## 6. Diagram object model
 
@@ -341,25 +326,21 @@ too verbose and is not an equivalent textual description.
 
 ### 11.2 Application surfaces
 
-The static web application exposes separate entry points or routed modes:
+The static web application has one entry point, `index.html`, which always opens
+the task pane. The manifest uses `ShowTaskpane`; no function-command runtime or
+editor dialog is needed. Old `?view=pane` links still open the same pane.
 
-- task pane / command parent;
-- editor dialog;
-- function command runtime, if required by the selected manifest model.
-
-Shared rendering, payload, validation, and messaging modules are framework-light
+Shared rendering, payload, and validation modules are framework-light
 TypeScript so they can be tested without Word.
 
 ### 11.3 Proposed modules
 
 ```text
 src/
-  commands/
-    insertCommand.ts
-    editCommand.ts
-  dialog/
-    EditorDialog.tsx
-    messages.ts
+  main.tsx
+  pane/
+    PaneApp.tsx
+    usePaneEditor.ts
   editor/
     MermaidEditor.tsx
     diagnostics.ts
@@ -386,9 +367,7 @@ src/
 
 - Bundle Mermaid rather than loading arbitrary third-party runtime code.
 - Lazy-load the editor, Mermaid, and diagram-specific renderer chunks only when
-  the editor or preview is opened.
-- Keep the command bootstrap small so ribbon commands become responsive
-  quickly.
+  the pane is opened.
 - Use CodeMirror instead of Monaco.
 - Avoid state-management, routing, and component libraries beyond what the
   product needs.
@@ -399,20 +378,15 @@ src/
 
 The production manifest adds a Mermaid group to Word's built-in **Insert** tab:
 
-- **Mermaid** — insert the default flowchart.
-- **Edit Mermaid** — edit the selected Mermaid diagram.
+- **Mermaid** — open the code-only task pane to insert or edit a diagram.
 
-The task pane monitors `DocumentSelectionChanged`. It enables **Edit Mermaid**
-only when the nearest parent content control has a valid Mermaid Office tag and
-payload. Selection checks are debounced and guarded so rapid cursor movement
+The task pane monitors `DocumentSelectionChanged`. It loads a diagram only when
+an actual selected picture has a valid Mermaid Office tag and payload.
+Selection checks are serialized and guarded so rapid cursor movement
 does not queue overlapping `Word.run` operations.
 
-If dynamic command enablement is not consistent across target clients, **Edit
-Mermaid** remains available and displays a precise selection message when the
-current selection is not a Mermaid diagram.
-
-The task pane is the command landing surface and compact editor. The dialog is
-the preferred full editing experience.
+The same button handles new and existing diagrams. There is no second editing
+command or expanded editor.
 
 ### 12.1 Editor component choice
 
@@ -443,15 +417,14 @@ require a language server or network service.
 ### Phase 1: platform spikes
 
 - Add the Insert ribbon command.
-- Add the selection-aware **Edit Mermaid** ribbon command and task-pane loading
-  flow.
+- Add automatic selection-aware source loading in the task pane.
 - Prove default SVG insertion on supported Windows and Mac clients.
 - Prove PNG insertion on Word web.
 - Verify content-control wrapping and selection detection.
 - Verify SVG `<metadata>` and PNG `iTXt` preservation through save and
   cross-document copy/paste.
 - Verify that desktop-inserted SVG remains visible in Word web.
-- Prove dialog-to-parent messaging and document replacement.
+- Prove direct task-pane document replacement.
 
 These spikes decide the final persistence behavior. They should happen before
 polishing the editor.
@@ -459,7 +432,7 @@ polishing the editor.
 ### Phase 2: minimum viable workflow
 
 - Insert the default flowchart.
-- Open the editor dialog for a selected diagram.
+- Open the task pane and load the selected diagram automatically.
 - Add syntax highlighting, debounced preview, and parse-error reporting.
 - Save SVG or PNG back into the existing content control.
 - Preserve size and document position.
@@ -492,11 +465,10 @@ polishing the editor.
 The first production release is complete when:
 
 1. The add-in can be installed and opened in current Word web, Windows, and Mac.
-2. **Insert > Mermaid** inserts the default diagram at the selection.
+2. **Insert > Mermaid** opens the pane; **Insert** creates a diagram at an empty cursor.
 3. A recipient without the add-in sees the rendered picture.
-4. A user with the add-in can select a Mermaid diagram and invoke **Edit
-   Mermaid**.
-5. The dialog loads the exact stored source and displays a preview.
+4. A user with the add-in can select a Mermaid diagram and open **Mermaid**.
+5. The pane loads the exact stored source and previews valid edits in Word.
 6. Invalid source shows an actionable error and cannot replace the document
    picture.
 7. Saving valid source updates the picture while preserving its intended size
@@ -513,19 +485,18 @@ The first production release is complete when:
 | Risk or question | Planned response |
 | --- | --- |
 | Word strips custom SVG or PNG metadata during some copy/paste paths | Test early; use redundant embedded and document storage; document unsupported recovery paths |
-| Native image right-click extension is unavailable | Use selection-aware **Edit Mermaid** ribbon command and task-pane fallback |
+| Native image right-click extension is unavailable | Use the Mermaid ribbon button and automatic selection tracking in the pane |
 | Word web cannot insert SVG through ImageCoercion 1.2 | Insert PNG locally on web |
-| Dialog cannot directly use document APIs | Keep Word operations in the parent runtime and use typed dialog messages |
+| Live preview creates real document edits | Debounce and serialize writes; retain the last valid picture on parse errors |
 | SVG replacement changes sizing or placement | Capture dimensions and replace within the existing content control |
 | Mermaid parser errors lack stable location information | Normalize available parser details and show a clear general error otherwise |
-| Large Mermaid/editor bundles slow startup | Separate command bootstrap and lazy-load editor/rendering code |
+| Large Mermaid/editor bundles slow startup | Lazy-load diagram renderer code in the pane |
 | Mermaid behavior changes across releases | Lock the version and store `rendererVersion` in diagram metadata |
 
 ## 17. Authoritative platform references
 
 - [Add-in commands](https://learn.microsoft.com/office/dev/add-ins/design/add-in-commands)
 - [Create add-in commands with the add-in-only manifest](https://learn.microsoft.com/office/dev/add-ins/develop/create-addin-commands)
-- [Office Dialog API](https://learn.microsoft.com/office/dev/add-ins/develop/dialog-api-in-office-add-ins)
 - [Image Coercion requirement sets](https://learn.microsoft.com/javascript/api/requirement-sets/common/image-coercion-requirement-sets)
 - [ContextMenu extension point](https://learn.microsoft.com/javascript/api/manifest/extensionpoint)
 - [Office ribbon API](https://learn.microsoft.com/javascript/api/office/office.ribbon)

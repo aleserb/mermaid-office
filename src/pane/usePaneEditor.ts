@@ -104,12 +104,12 @@ export function usePaneEditor() {
     const initialize = async () => {
       try {
         if (typeof Office === 'undefined') {
-          throw new Error('Open Mermaid pane inside Microsoft Word to insert or edit diagrams.')
+          throw new Error('Open Mermaid inside Microsoft Word to insert or edit diagrams.')
         }
         await Office.onReady()
         if (!active) return
         if (!Office.context?.document) {
-          throw new Error('Open Mermaid pane inside Microsoft Word to follow document selection.')
+          throw new Error('Open Mermaid inside Microsoft Word to follow document selection.')
         }
         watcher.current = watchSelectedDiagram(
           (selected) => {

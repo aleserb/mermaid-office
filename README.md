@@ -28,13 +28,13 @@ npm install
 npm run dev
 ```
 
-The regular browser view supports editor and preview development. Diagram
+The regular browser view opens the code-only pane for UI development. Diagram
 insertion must be tested by sideloading `manifest.xml` in Microsoft Word.
 After manifest changes, remove and upload the manifest again because Word caches
 the sideloaded manifest separately from the hosted web application.
 
 When the task pane is open, selecting an inserted Mermaid diagram loads its
-stored source and theme into the editor automatically. Saving replaces the
+stored source and theme into the editor automatically. Valid edits replace the
 selected picture in place while preserving its displayed width and alternative
 text. Move the cursor away from the diagram to leave edit mode.
 Diagram wrappers use a blank placeholder, so deleting a picture does not leave
@@ -48,28 +48,23 @@ the pasted diagram restores its editable Mermaid source from embedded metadata.
 Copied content controls with duplicate IDs are assigned a new identity before
 editing so changes stay attached to the selected diagram.
 
-Use **Expand editor** for a larger two-column editing dialog with a live
-preview. Parse failures are shown in the editor gutter, keep the last valid
-preview visible, and prevent saving until the source is valid.
-The preview automatically fits each newly rendered diagram to the available
-space. Its controls support zooming in and out, resetting to fit, and dragging
-a zoomed diagram to pan. Hold Ctrl (Windows) or Command (macOS) while scrolling
-over the preview to zoom without taking over normal page scrolling.
+The Word picture itself is the live preview. Parse failures appear below the
+code editor and in its gutter, keep the last valid picture visible in Word,
+and prevent insertion or live updates until the source is valid.
 
 The source editor includes Mermaid-aware syntax highlighting and autocomplete,
 common diagram snippets, automatic bracket and quote closing, standard editor
-keyboard shortcuts, and a link to the Mermaid syntax reference. Drag the
-divider between source and preview to resize the panes.
+keyboard shortcuts, and a link to the Mermaid syntax reference.
 In sequence diagrams, autocomplete also suggests participant and actor IDs from
 declarations and existing messages, with declared aliases shown as descriptions.
 Suggestions are available for message senders and recipients, note references,
 and activation commands; use Ctrl+Space to request suggestions explicitly.
 
-The editor UI and preview canvas always use a light appearance, regardless of
+The editor UI always uses a light appearance, regardless of
 Word's or the system's theme. The selected Mermaid theme independently controls
 the diagram's colors and exported PNG.
-The code editor always uses the platform's System UI font at 12 px, in both the
-pane and dialog. This changes only the editor display, not the diagram output.
+The code editor always uses the platform's System UI font at 12 px.
+This changes only the editor display, not the diagram output.
 
 The editor offers Mermaid's Default, Neutral, Dark, Forest, Neo, Redux Color,
 and monochrome Redux render themes, including their dark variants. The selected
@@ -77,15 +72,10 @@ theme is stored with the diagram so it is restored when editing later. The most
 recently selected theme is also remembered for new diagrams. New users start
 with Redux Color when no theme preference has been saved.
 
-The ribbon's **Mermaid Editor** command opens this dialog directly without opening the
-task pane. The dialog shows **Insert** for a new diagram and **Update** when an
-existing Mermaid diagram picture is selected. A cursor on a blank line or in
-surrounding text starts a new diagram, even if Word has extended a hidden diagram
-content control over that text. Because this changes `manifest.xml`,
-remove and upload the manifest again after deployment.
-
-The temporary **Insert > Mermaid pane** button opens an experimental code-only
-right-hand task pane without changing the existing Mermaid Editor dialog.
+The ribbon has one **Insert > Mermaid** button, which opens the code-only
+right-hand task pane. There is no separate editor dialog or preview pane.
+Remove and upload the updated `manifest.xml` again to replace the old ribbon
+buttons; reopening a cached pane alone does not refresh Word's ribbon.
 Place the cursor on a blank line and press **Insert** once. Valid source
 and theme edits then update that diagram's PNG directly in Word after a short
 typing pause; invalid source leaves the last valid image in place.
