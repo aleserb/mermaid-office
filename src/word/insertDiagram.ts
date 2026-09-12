@@ -291,8 +291,6 @@ export async function updateDiagram(
       throw new Error('Select the Mermaid diagram you want to update.')
     }
 
-    // Keep the replacement anchor rooted in the selection, not in the picture
-    // that is about to be deleted; Word web can invalidate that picture's paths.
     let contentControl = directParent
     if (directParent.isNullObject) {
       contentControl = selectedPicture.parentContentControlOrNullObject
@@ -306,7 +304,7 @@ export async function updateDiagram(
       throw new Error('Select the same Mermaid diagram before updating it.')
     }
 
-    const existingPicture = contentControl.inlinePictures.getFirstOrNullObject()
+    const existingPicture = selectedPicture
     existingPicture.load('altTextTitle,altTextDescription,width')
     await context.sync()
 
@@ -330,33 +328,22 @@ export async function updateDiagram(
       embedPayloadInPng(raster.base64, payload),
       dimensions.width,
     )
-    const insertionPoint = contentControl.getRange(Word.RangeLocation.before)
-    insertionPoint.track()
-    contentControl.delete(false)
-    await context.sync()
-
-    const replacement = insertionPoint.insertInlinePictureFromBase64(
+    // Replace only the selected picture. A hidden control may also contain text
+    // or other diagrams, and deleting it can invalidate Word's insertion range.
+    const replacement = existingPicture.getRange().insertInlinePictureFromBase64(
       png,
-      Word.InsertLocation.after,
+      Word.InsertLocation.replace,
     )
-    await context.sync()
-
-    const replacementControl = replacement.insertContentControl()
-    configureDiagramContentControl(replacementControl, payload)
-    await context.sync()
-
-    const wrappedPicture = replacementControl.inlinePictures.getFirst()
-    wrappedPicture.width = dimensions.width
-    wrappedPicture.height = dimensions.height
-    wrappedPicture.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
-    wrappedPicture.altTextDescription =
+    replacement.width = dimensions.width
+    replacement.height = dimensions.height
+    replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
+    replacement.altTextDescription =
       existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
     context.document.settings.add(
       getDocumentSettingKey(payload.id),
       JSON.stringify(payload),
     )
-    replacementControl.select()
-    insertionPoint.untrack()
+    replacement.getRange().select()
     await context.sync()
   })
 

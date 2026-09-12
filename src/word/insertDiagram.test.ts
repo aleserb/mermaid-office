@@ -176,26 +176,25 @@ describe('Word diagram insertion', () => {
 
   it.each([true, false])('only updates with a selected picture: %s', async (pictureSelected) => {
     const sync = vi.fn().mockResolvedValue(undefined)
-    const insertInlinePictureFromBase64 = vi.fn().mockReturnValue({
+    const selectReplacement = vi.fn()
+    const replacementPicture = {
       altTextTitle: '',
       altTextDescription: '',
       width: 0,
       height: 0,
-      insertContentControl: vi.fn(),
-    })
-    const track = vi.fn()
-    const untrack = vi.fn()
+      getRange: vi.fn().mockReturnValue({ select: selectReplacement }),
+    }
+    const insertInlinePictureFromBase64 = vi.fn().mockReturnValue(replacementPicture)
     const getRange = vi.fn().mockReturnValue({
-      track,
-      untrack,
       insertInlinePictureFromBase64,
     })
     const existingPicture = {
-      isNullObject: false,
+      isNullObject: !pictureSelected,
       width: 324,
       altTextTitle: 'Mermaid diagram',
       altTextDescription: 'Diagram created with Mermaid Office.',
       load: vi.fn(),
+      getRange,
     }
     const existing = createDiagramPayload(
       'flowchart LR\nA --> B',
@@ -208,46 +207,17 @@ describe('Word diagram insertion', () => {
       tag: `mermaid-office:v1:${existing.id}`,
       load: vi.fn(),
       delete: vi.fn(),
-      getRange,
+      select: vi.fn(),
       inlinePictures: {
         getFirstOrNullObject: vi.fn().mockReturnValue(existingPicture),
       },
     }
-    const replacementControl = {
-      tag: '',
-      title: '',
-      appearance: '',
-      cannotDelete: true,
-      cannotEdit: true,
-      select: vi.fn(),
-      inlinePictures: {
-        getFirst: vi.fn(),
-      },
-    }
-    const replacementPicture = {
-      altTextTitle: '',
-      altTextDescription: '',
-      width: 0,
-      height: 0,
-      insertContentControl: vi.fn().mockReturnValue(replacementControl),
-    }
-    const wrappedPicture = {
-      altTextTitle: '',
-      altTextDescription: '',
-      width: 0,
-      height: 0,
-    }
-    replacementControl.inlinePictures.getFirst.mockReturnValue(wrappedPicture)
-    insertInlinePictureFromBase64.mockReturnValue(replacementPicture)
     const context = {
       document: {
         getSelection: () => ({
           parentContentControlOrNullObject: contentControl,
           inlinePictures: {
-            getFirstOrNullObject: vi.fn().mockReturnValue({
-              isNullObject: !pictureSelected,
-              parentContentControlOrNullObject: { isNullObject: true, load: vi.fn() },
-            }),
+            getFirstOrNullObject: vi.fn().mockReturnValue(existingPicture),
           },
         }),
         settings: { add: vi.fn() },
@@ -257,8 +227,7 @@ describe('Word diagram insertion', () => {
 
     vi.stubGlobal('Word', {
       run: vi.fn(async (callback) => callback(context)),
-      InsertLocation: { after: 'After' },
-      RangeLocation: { before: 'Before' },
+      InsertLocation: { replace: 'Replace' },
       ContentControlAppearance: { hidden: 'Hidden' },
     })
 
@@ -280,22 +249,17 @@ describe('Word diagram insertion', () => {
     }
     await update
 
-    expect(getRange).toHaveBeenCalledWith('Before')
-    expect(track).toHaveBeenCalledOnce()
-    expect(contentControl.delete).toHaveBeenCalledWith(false)
+    expect(getRange).toHaveBeenCalledOnce()
+    expect(contentControl.delete).not.toHaveBeenCalled()
+    expect(contentControl.inlinePictures.getFirstOrNullObject).not.toHaveBeenCalled()
     expect(insertInlinePictureFromBase64).toHaveBeenCalledWith(
       expect.any(String),
-      'After',
+      'Replace',
     )
-    expect(
-      contentControl.delete.mock.invocationCallOrder[0],
-    ).toBeLessThan(insertInlinePictureFromBase64.mock.invocationCallOrder[0])
-    expect(replacementPicture.insertContentControl).toHaveBeenCalledOnce()
-    expect(replacementControl.inlinePictures.getFirst).toHaveBeenCalledOnce()
-    expect(replacementControl.tag).toBe(`mermaid-office:v1:${existing.id}`)
-    expect(wrappedPicture.width).toBe(324)
-    expect(wrappedPicture.height).toBeCloseTo(194.4, 2)
-    expect(replacementControl.select).toHaveBeenCalledOnce()
-    expect(untrack).toHaveBeenCalledOnce()
+    expect(contentControl.tag).toBe(`mermaid-office:v1:${existing.id}`)
+    expect(replacementPicture.width).toBe(324)
+    expect(replacementPicture.height).toBeCloseTo(194.4, 2)
+    expect(selectReplacement).toHaveBeenCalledOnce()
+    expect(contentControl.select).not.toHaveBeenCalled()
   })
 })
