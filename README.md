@@ -55,6 +55,10 @@ The source editor includes Mermaid-aware syntax highlighting and autocomplete,
 common diagram snippets, automatic bracket and quote closing, standard editor
 keyboard shortcuts, and a link to the Mermaid syntax reference. Drag the
 divider between source and preview to resize the panes.
+In sequence diagrams, autocomplete also suggests participant and actor IDs from
+declarations and existing messages, with declared aliases shown as descriptions.
+Suggestions are available for message senders and recipients, note references,
+and activation commands; use Ctrl+Space to request suggestions explicitly.
 
 The editor offers Mermaid's Default, Neutral, Dark, Forest, Neo, Redux Color,
 and monochrome Redux render themes, including their dark variants. The selected
