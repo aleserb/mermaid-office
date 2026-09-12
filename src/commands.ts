@@ -49,4 +49,6 @@ async function openEditor(event: Office.AddinCommands.Event) {
 
 Office.onReady(() => {
   Office.actions.associate('openEditor', openEditor)
+  // Keep cached copies of the previous manifest functional until Word refreshes them.
+  Office.actions.associate('insertDefaultDiagram', openEditor)
 })
