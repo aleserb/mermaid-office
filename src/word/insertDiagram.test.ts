@@ -246,7 +246,7 @@ describe('Word diagram insertion', () => {
           inlinePictures: {
             getFirstOrNullObject: vi.fn().mockReturnValue({
               isNullObject: !pictureSelected,
-              parentContentControlOrNullObject: contentControl,
+              parentContentControlOrNullObject: { isNullObject: true, load: vi.fn() },
             }),
           },
         }),

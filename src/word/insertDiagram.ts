@@ -282,16 +282,23 @@ export async function updateDiagram(
 
   await Word.run(async (context) => {
     const selection = context.document.getSelection()
+    const directParent = selection.parentContentControlOrNullObject
     const selectedPicture = selection.inlinePictures.getFirstOrNullObject()
+    directParent.load('tag')
     await context.sync()
 
     if (selectedPicture.isNullObject) {
       throw new Error('Select the Mermaid diagram you want to update.')
     }
 
-    const contentControl = selectedPicture.parentContentControlOrNullObject
-    contentControl.load('tag')
-    await context.sync()
+    // Keep the replacement anchor rooted in the selection, not in the picture
+    // that is about to be deleted; Word web can invalidate that picture's paths.
+    let contentControl = directParent
+    if (directParent.isNullObject) {
+      contentControl = selectedPicture.parentContentControlOrNullObject
+      contentControl.load('tag')
+      await context.sync()
+    }
     if (
       contentControl.isNullObject ||
       contentControl.tag !== getContentControlTag(existing.id)
