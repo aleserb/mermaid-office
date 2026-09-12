@@ -77,6 +77,18 @@ surrounding text starts a new diagram, even if Word has extended a hidden diagra
 content control over that text. Because this changes `manifest.xml`,
 remove and upload the manifest again after deployment.
 
+The temporary **Insert > Mermaid pane** button opens an experimental code-only
+right-hand task pane without changing the existing Mermaid Editor dialog.
+Place the cursor on a blank line and press **Insert diagram** once. Valid source
+and theme edits then update that diagram's PNG directly in Word after a short
+typing pause; invalid source leaves the last valid image in place.
+
+The pane stays linked to its diagram even if you move the document cursor.
+Use **Edit selected** to load another selected Mermaid picture, or **New diagram**
+to start a separate insertion. Switching with pending edits requires confirmation.
+Live updates modify the real document and can add Word undo/AutoSave changes;
+discarding pending edits does not undo changes already written to Word.
+
 ## Checks
 
 ```bash

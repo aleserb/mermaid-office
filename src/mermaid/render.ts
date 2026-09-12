@@ -17,6 +17,7 @@ async function initializeMermaid(theme: DiagramTheme) {
     theme,
     look: theme.startsWith('redux') || theme.startsWith('neo') ? 'neo' : 'classic',
     htmlLabels: false,
+    suppressErrorRendering: true,
     secure: [
       'secure',
       'securityLevel',

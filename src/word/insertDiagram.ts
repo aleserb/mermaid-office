@@ -4,6 +4,7 @@ import {
   getContentControlTag,
   getDiagramIdFromTag,
   getDocumentSettingKey,
+  parseDiagramPayload,
   type DiagramFormat,
   type DiagramPayload,
   type DiagramSize,
@@ -16,6 +17,10 @@ export interface RasterizedDiagram {
   base64: string
   width: number
   height: number
+}
+
+export interface DiagramInsertionOptions {
+  requireEmptySelection?: boolean
 }
 
 interface PixelBounds {
@@ -184,8 +189,11 @@ function configureDiagramContentControl(
   contentControl.cannotEdit = false
 }
 
-async function separateEnclosingDiagram(context: Word.RequestContext): Promise<void> {
-  const enclosing = context.document.getSelection().parentContentControlOrNullObject
+async function separateEnclosingDiagram(
+  context: Word.RequestContext,
+  selection: Word.Range = context.document.getSelection(),
+): Promise<void> {
+  const enclosing = selection.parentContentControlOrNullObject
   enclosing.load('tag')
   await context.sync()
   const id = enclosing.isNullObject ? null : getDiagramIdFromTag(enclosing.tag)
@@ -218,10 +226,21 @@ async function separateEnclosingDiagram(context: Word.RequestContext): Promise<v
 export async function insertPngObject(
   raster: RasterizedDiagram,
   payload: DiagramPayload,
+  options: DiagramInsertionOptions = {},
 ): Promise<void> {
   await Word.run(async (context) => {
-    await separateEnclosingDiagram(context)
+    const insertionSelection = options.requireEmptySelection
+      ? context.document.getSelection()
+      : undefined
+    if (insertionSelection) {
+      await requireInsertionCursor(context, insertionSelection)
+    }
+    await separateEnclosingDiagram(context, insertionSelection)
+    // Unwrapping an enclosing diagram can invalidate the previous selection path.
     const selection = context.document.getSelection()
+    if (options.requireEmptySelection) {
+      await requireInsertionCursor(context, selection)
+    }
     const contentControl = selection.insertContentControl()
     configureDiagramContentControl(contentControl, payload)
     await context.sync()
@@ -256,6 +275,15 @@ export async function insertPngObject(
     context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
     await context.sync()
   })
+}
+
+async function requireInsertionCursor(context: Word.RequestContext, selection: Word.Range): Promise<void> {
+  const picture = selection.inlinePictures.getFirstOrNullObject()
+  selection.load('isEmpty')
+  await context.sync()
+  if (!selection.isEmpty || !picture.isNullObject) {
+    throw new Error('Place the cursor without selecting text or a picture before inserting a diagram.')
+  }
 }
 
 export async function updateDiagram(
@@ -312,41 +340,102 @@ export async function updateDiagram(
       throw new Error('The selected Mermaid diagram no longer contains a picture.')
     }
 
-    const dimensions = applySize
-      ? fitDiagram(
-          raster.width,
-          raster.height,
-          DIAGRAM_WIDTHS[size],
-          650,
-          true,
-        )
-      : {
-          width: existingPicture.width,
-          height: existingPicture.width * (raster.height / raster.width),
-        }
-    const png = setPngPhysicalWidth(
-      embedPayloadInPng(raster.base64, payload),
-      dimensions.width,
-    )
-    // Replace only the selected picture. A hidden control may also contain text
-    // or other diagrams, and deleting it can invalidate Word's insertion range.
-    const replacement = existingPicture.getRange().insertInlinePictureFromBase64(
-      png,
-      Word.InsertLocation.replace,
-    )
-    replacement.width = dimensions.width
-    replacement.height = dimensions.height
+    const replacement = replaceDiagramPicture(context, existingPicture, raster, payload, applySize)
     replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
     replacement.altTextDescription =
       existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
-    context.document.settings.add(
-      getDocumentSettingKey(payload.id),
-      JSON.stringify(payload),
-    )
     replacement.getRange().select()
     await context.sync()
   })
 
+  return 'png'
+}
+
+function replaceDiagramPicture(
+  context: Word.RequestContext,
+  existingPicture: Word.InlinePicture,
+  raster: RasterizedDiagram,
+  payload: DiagramPayload,
+  applySize: boolean,
+): Word.InlinePicture {
+  const dimensions = applySize
+    ? fitDiagram(raster.width, raster.height, DIAGRAM_WIDTHS[payload.size], 650, true)
+    : {
+        width: existingPicture.width,
+        height: existingPicture.width * (raster.height / raster.width),
+      }
+  const png = setPngPhysicalWidth(
+    embedPayloadInPng(raster.base64, payload),
+    dimensions.width,
+  )
+  // Replace only the picture: deleting its control can invalidate Word's range
+  // and remove surrounding text or other diagrams.
+  const replacement = existingPicture.getRange().insertInlinePictureFromBase64(
+    png,
+    Word.InsertLocation.replace,
+  )
+  replacement.width = dimensions.width
+  replacement.height = dimensions.height
+  replacement.altTextTitle = existingPicture.altTextTitle
+  replacement.altTextDescription = existingPicture.altTextDescription
+  context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
+  return replacement
+}
+
+export async function updateDiagramById(
+  svg: string,
+  existing: DiagramPayload,
+  source: string,
+  theme: DiagramTheme = existing.theme,
+  size: DiagramSize = existing.size,
+  applySize = false,
+  renderedRaster?: RasterizedDiagram,
+): Promise<DiagramFormat> {
+  if (typeof Word === 'undefined') {
+    throw new Error('Open Mermaid Office inside Microsoft Word to update a diagram.')
+  }
+
+  const payload: DiagramPayload = { ...existing, source, theme, size, format: 'png' }
+  const raster = renderedRaster ?? (await rasterizeSvg(svg, size))
+
+  await Word.run(async (context) => {
+    const controls = context.document.contentControls.getByTag(getContentControlTag(existing.id))
+    controls.load('items')
+    await context.sync()
+    if (controls.items.length === 0) {
+      throw new Error('The Mermaid diagram was deleted or can no longer be found.')
+    }
+    if (controls.items.length !== 1) {
+      throw new Error('Multiple Mermaid diagrams share this ID. Select the diagram again to edit it.')
+    }
+
+    const pictures = controls.items[0].inlinePictures
+    const setting = context.document.settings.getItemOrNullObject(getDocumentSettingKey(existing.id))
+    pictures.load('items')
+    setting.load('value')
+    await context.sync()
+    if (pictures.items.length !== 1) {
+      throw new Error('The Mermaid diagram must contain exactly one picture to update it safely.')
+    }
+    if (!setting.isNullObject) {
+      const stored = parseDiagramPayload(String(setting.value))
+      if (
+        stored.id !== existing.id ||
+        stored.source !== existing.source ||
+        stored.theme !== existing.theme ||
+        stored.size !== existing.size ||
+        stored.format !== existing.format
+      ) {
+        throw new Error('The Mermaid diagram changed in another editor. Select it again before updating.')
+      }
+    }
+
+    const picture = pictures.items[0]
+    picture.load('altTextTitle,altTextDescription,width')
+    await context.sync()
+    replaceDiagramPicture(context, picture, raster, payload, applySize)
+    await context.sync()
+  })
   return 'png'
 }
 
@@ -375,6 +464,17 @@ export async function insertDiagram(
   size: DiagramSize = 'medium',
   renderedRaster?: RasterizedDiagram,
 ): Promise<DiagramFormat> {
+  return (await insertDiagramWithPayload(svg, source, theme, size, renderedRaster)).format
+}
+
+export async function insertDiagramWithPayload(
+  svg: string,
+  source: string,
+  theme: DiagramTheme = 'default',
+  size: DiagramSize = 'medium',
+  renderedRaster?: RasterizedDiagram,
+  options: DiagramInsertionOptions = {},
+): Promise<DiagramPayload> {
   if (typeof Office === 'undefined' || !Office.context?.document) {
     throw new Error('Open Mermaid Office inside Microsoft Word to insert a diagram.')
   }
@@ -382,6 +482,6 @@ export async function insertDiagram(
   const payload = createDiagramPayload(source, 'png', theme, size)
   const raster = renderedRaster ?? (await rasterizeSvg(svg, size))
   const png = embedPayloadInPng(raster.base64, payload)
-  await insertPngObject({ ...raster, base64: png }, payload)
-  return 'png'
+  await insertPngObject({ ...raster, base64: png }, payload, options)
+  return payload
 }

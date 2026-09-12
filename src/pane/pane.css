@@ -1,0 +1,29 @@
+.pane-shell {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100vh;
+  min-height: 480px;
+  padding: 12px;
+}
+
+.pane-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pane-build {
+  color: var(--colorNeutralForeground3);
+}
+
+.pane-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pane-shell .editor-shell {
+  min-height: 200px;
+}
