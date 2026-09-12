@@ -130,21 +130,22 @@ describe('Word diagram insertion', () => {
     )
   })
 
-  it('clears the old picture before inserting an updated diagram', async () => {
+  it('replaces only the existing picture range when updating a diagram', async () => {
     const sync = vi.fn().mockResolvedValue(undefined)
-    const clear = vi.fn()
     const insertInlinePictureFromBase64 = vi.fn().mockReturnValue({
       altTextTitle: '',
       altTextDescription: '',
       width: 0,
       height: 0,
     })
+    const getRange = vi.fn().mockReturnValue({ insertInlinePictureFromBase64 })
     const existingPicture = {
       isNullObject: false,
       width: 324,
       altTextTitle: 'Mermaid diagram',
       altTextDescription: 'Diagram created with Mermaid Office.',
       load: vi.fn(),
+      getRange,
     }
     const existing = createDiagramPayload(
       'flowchart LR\nA --> B',
@@ -156,12 +157,10 @@ describe('Word diagram insertion', () => {
       isNullObject: false,
       tag: `mermaid-office:v1:${existing.id}`,
       load: vi.fn(),
-      clear,
       select: vi.fn(),
       inlinePictures: {
         getFirstOrNullObject: vi.fn().mockReturnValue(existingPicture),
       },
-      insertInlinePictureFromBase64,
     }
     const context = {
       document: {
@@ -191,12 +190,10 @@ describe('Word diagram insertion', () => {
       { base64: transparentPixel, width: 100, height: 60 },
     )
 
-    expect(clear).toHaveBeenCalledOnce()
-    expect(clear.mock.invocationCallOrder[0]).toBeLessThan(
-      insertInlinePictureFromBase64.mock.invocationCallOrder[0],
-    )
-    expect(sync.mock.invocationCallOrder[2]).toBeLessThan(
-      insertInlinePictureFromBase64.mock.invocationCallOrder[0],
+    expect(getRange).toHaveBeenCalledOnce()
+    expect(insertInlinePictureFromBase64).toHaveBeenCalledWith(
+      expect.any(String),
+      'Replace',
     )
   })
 })

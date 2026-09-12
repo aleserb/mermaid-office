@@ -268,10 +268,8 @@ export async function updateDiagram(
       throw new Error('The selected Mermaid diagram no longer contains a picture.')
     }
 
-    contentControl.clear()
-    await context.sync()
-
-    const replacement = contentControl.insertInlinePictureFromBase64(
+    const pictureRange = existingPicture.getRange()
+    const replacement = pictureRange.insertInlinePictureFromBase64(
       png,
       Word.InsertLocation.replace,
     )
