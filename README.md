@@ -61,7 +61,8 @@ the sideloaded manifest separately from the hosted web application.
 When the task pane is open, selecting an inserted Mermaid diagram loads its
 stored source and theme into the editor automatically. Valid edits replace the
 selected picture in place while preserving its displayed width and alternative
-text. Move the cursor away from the diagram to leave edit mode.
+text. Large diagrams use explicit updates instead, as described below.
+Move the cursor away from the diagram to leave edit mode.
 Diagram wrappers use a blank placeholder, so deleting a picture does not leave
 Word's "Click or tap here to enter text" prompt, even with the add-in closed.
 Older diagrams receive this setting when selected or updated. With the pane open,
@@ -82,7 +83,8 @@ common diagram snippets, automatic bracket and quote closing, standard editor
 keyboard shortcuts, and a link to the Mermaid syntax reference.
 The fixed-height header places Insert on the left and the settings gear and
 syntax-reference document-info icon on the right. Insert is hidden while editing
-an existing diagram without shifting the editor.
+an existing diagram without shifting the editor. Large diagrams show Update in
+the same space; it is disabled until valid, unsaved changes are ready.
 The active line and its line number are highlighted. The editor's built-in
 search and replace panel and its shortcuts are disabled.
 In sequence diagrams, autocomplete also suggests participant and actor IDs from
@@ -136,9 +138,22 @@ The ribbon has one **Insert > Mermaid** button, which opens the code-only
 right-hand task pane. There is no separate editor dialog or preview pane.
 Remove and upload the updated `manifest.xml` again to replace the old ribbon
 buttons; reopening a cached pane alone does not refresh Word's ribbon.
-Place the cursor on a blank line and press **Insert** once. Valid source
-and theme edits then update that diagram's PNG directly in Word after a short
-typing pause; invalid source leaves the last valid image in place.
+Place the cursor on a blank line and press **Insert** once. For small diagrams,
+valid edits then update the PNG directly in Word after a short typing pause.
+For large diagrams, edits remain in the pane until **Update** is pressed.
+Validation still runs while typing; invalid source leaves the last valid image
+in place and disables Update. Settings **Apply** is also an explicit update,
+including any pending source edits.
+
+Manual updates are enabled at 50 nonblank source lines, 4,000 source characters,
+or rendered SVG dimensions exceeding 1,536 pixels on either side or 2 megapixels
+(2,097,152 pixels). These are conservative size heuristics, not an exact prediction
+of Word's image-import behavior. Once enabled, manual mode stays active for the
+current editing session, even if the diagram is shortened; selecting another
+diagram resets the mode and evaluates its size again. Edits made during an Update
+remain unsaved until the next click. Switching diagrams with unsaved changes still
+requires confirmation. This avoids repeated large-picture imports while typing;
+an explicit Update can still show Word's own loading dialog.
 
 The pane automatically follows Word's selection. Select a Mermaid picture to
 load its source, or move to ordinary text or a blank line to start with the

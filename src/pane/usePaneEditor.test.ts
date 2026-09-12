@@ -19,6 +19,7 @@ vi.mock('../word/insertDiagram', () => ({
 vi.mock('../word/selection', () => ({ getSelectedDiagram: vi.fn(), watchSelectedDiagram: vi.fn() }))
 
 const existing = createDiagramPayload('flowchart LR\nA-->B', 'png', 'forest')
+const large = createDiagramPayload(`flowchart LR\n${'A-->B\n'.repeat(50)}`, 'png', 'forest')
 let selected: typeof existing | null = null
 let receiveSelection: (payload: typeof existing | null) => void
 let notifySelection: (() => void) | undefined
@@ -75,6 +76,136 @@ async function renderPending() {
 }
 
 describe('code-only pane workflow', () => {
+  it('keeps large diagrams unchanged until Update and writes only the requested revision', async () => {
+    const { result } = await openPane(large)
+    await renderPending()
+    expect(result.current.manualUpdates).toBe(true)
+    expect(result.current.canUpdate).toBe(false)
+    act(() => result.current.changeSource(`${large.source}B-->C`))
+    expect(result.current.canUpdate).toBe(false)
+    await renderPending()
+    expect(result.current.canUpdate).toBe(true)
+    expect(updateDiagramById).not.toHaveBeenCalled()
+
+    let finish!: (value: 'png') => void
+    vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    act(() => result.current.update())
+    expect(result.current.writing).toBe(true)
+    act(() => result.current.changeSource(`${large.source}B-->D`))
+    await renderPending()
+    await act(async () => { finish('png') })
+    expect(updateDiagramById).toHaveBeenCalledOnce()
+    expect(result.current.target?.source).toBe(`${large.source}B-->C`)
+    expect(result.current.dirty).toBe(true)
+    expect(result.current.canUpdate).toBe(true)
+    await act(async () => result.current.update())
+    expect(updateDiagramById).toHaveBeenCalledTimes(2)
+    expect(result.current.target?.source).toBe(`${large.source}B-->D`)
+    expect(result.current.canUpdate).toBe(false)
+  })
+
+  it('switches to manual updates before writing a growing diagram and stays manual when shortened', async () => {
+    const { result } = await openPane(existing)
+    act(() => result.current.changeSource(large.source))
+    await renderPending()
+    expect(result.current.manualUpdates).toBe(true)
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    act(() => result.current.changeSource('flowchart LR\nSmall'))
+    await renderPending()
+    expect(result.current.manualUpdates).toBe(true)
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    await act(async () => result.current.update())
+    act(() => selectInWord({ ...existing, id: 'another-small-diagram' }))
+    expect(result.current.manualUpdates).toBe(false)
+  })
+
+  it('uses rendered dimensions to detect a large diagram with short source before writing', async () => {
+    const { result } = await openPane(existing)
+    await renderPending()
+    vi.mocked(renderMermaid).mockResolvedValueOnce('<svg viewBox="0 0 300 2000"/>')
+    act(() => result.current.changeSource('flowchart TD\nTall'))
+    await renderPending()
+    expect(result.current.manualUpdates).toBe(true)
+    expect(result.current.canUpdate).toBe(true)
+    expect(updateDiagramById).not.toHaveBeenCalled()
+  })
+
+  it('retains explicit insertion for large drafts and requires Update for subsequent edits', async () => {
+    const { result } = await openPane()
+    act(() => result.current.changeSource(large.source))
+    await renderPending()
+    await act(async () => { await result.current.insert() })
+    expect(insertDiagramWithPayload).toHaveBeenCalledOnce()
+    act(() => result.current.changeSource(`${large.source}B-->C`))
+    await renderPending()
+    expect(result.current.canUpdate).toBe(true)
+    expect(updateDiagramById).not.toHaveBeenCalled()
+  })
+
+  it('blocks invalid manual updates and requires another click after a failed write', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { result } = await openPane(large)
+    vi.mocked(renderMermaid).mockRejectedValueOnce(new Error('Invalid Mermaid'))
+    act(() => result.current.changeSource('invalid'))
+    await renderPending()
+    expect(result.current.canUpdate).toBe(false)
+    act(() => result.current.update())
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    act(() => result.current.changeSource(`${large.source}B-->C`))
+    await renderPending()
+    vi.mocked(updateDiagramById).mockRejectedValueOnce(new Error('Word is unavailable'))
+    await act(async () => result.current.update())
+    await renderPending()
+    expect(result.current.canRetry).toBe(true)
+    expect(updateDiagramById).toHaveBeenCalledOnce()
+    await act(async () => result.current.update())
+    expect(updateDiagramById).toHaveBeenCalledTimes(2)
+    expect(result.current.canRetry).toBe(false)
+  })
+
+  it('confirms switching away from manual edits and disables Update during confirmation', async () => {
+    const { result } = await openPane(large)
+    act(() => result.current.changeSource(`${large.source}B-->C`))
+    await renderPending()
+    act(() => selectInWord(null))
+    expect(result.current.pending).not.toBeNull()
+    expect(result.current.canUpdate).toBe(false)
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    act(() => result.current.keepEditing())
+    expect(result.current.canUpdate).toBe(true)
+  })
+
+  it('treats settings Apply as an explicit update for the pinned large diagram', async () => {
+    const { result } = await openPane(large)
+    await renderPending()
+    act(() => result.current.beginSettings())
+    const other = { ...existing, id: 'other-diagram' }
+    act(() => selectInWord(other))
+    act(() => result.current.applySettings('dark', DEFAULT_DIAGRAM_SETTINGS))
+    await renderPending()
+    expect(updateDiagramById).not.toHaveBeenCalled()
+    await act(async () => result.current.endSettings(true))
+    expect(updateDiagramById).toHaveBeenCalledExactlyOnceWith(
+      expect.any(String), large, large.source, 'dark', 'medium', false, undefined, DEFAULT_DIAGRAM_SETTINGS,
+    )
+    expect(result.current.target?.id).toBe(other.id)
+    expect(isPaused?.()).toBe(false)
+  })
+
+  it('unpins selection if typing cancels the manual revision requested by settings Apply', async () => {
+    const { result } = await openPane(large)
+    await renderPending()
+    act(() => result.current.beginSettings())
+    act(() => result.current.applySettings('dark', DEFAULT_DIAGRAM_SETTINGS))
+    act(() => result.current.endSettings(true))
+    expect(isPaused?.()).toBe(true)
+    act(() => result.current.changeSource(`${large.source}B-->C`))
+    expect(isPaused?.()).toBe(false)
+    await renderPending()
+    expect(result.current.canUpdate).toBe(true)
+    expect(updateDiagramById).not.toHaveBeenCalled()
+  })
+
   it('pins settings to the original diagram and applies before following a new selection', async () => {
     const { result } = await openPane(existing)
     await renderPending()
@@ -179,7 +310,8 @@ describe('code-only pane workflow', () => {
     await renderPending()
     act(() => result.current.changeSource('flowchart LR\nCurrent'))
     await renderPending()
-    await act(async () => { finishOlder('<svg>old</svg>') })
+    await act(async () => { finishOlder('<svg viewBox="0 0 300 2000"/>') })
+    expect(result.current.manualUpdates).toBe(false)
     expect(updateDiagramById).toHaveBeenCalledOnce()
     expect(result.current.target?.source).toBe('flowchart LR\nCurrent')
   })

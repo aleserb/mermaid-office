@@ -104,6 +104,30 @@ it('opens settings from the keyboard and discards edits on Escape and Cancel', a
   expect(updateDiagramById).not.toHaveBeenCalled()
 })
 
+it('shows a header Update button for a large diagram and writes only on click', async () => {
+  const selected = createDiagramPayload(`flowchart LR\n${'A-->B\n'.repeat(50)}`, 'png', 'forest')
+  vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
+  vi.mocked(watchSelectedDiagram).mockImplementationOnce(onSelected => {
+    onSelected(selected)
+    return Object.assign(vi.fn(), { refresh: vi.fn() })
+  })
+  vi.mocked(updateDiagramById).mockResolvedValueOnce('png')
+  const user = userEvent.setup()
+  const { container } = render(<PaneApp />)
+  await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
+  const update = within(screen.getByRole('banner')).getByRole('button', { name: 'Update' })
+  expect(update).toBeDisabled()
+  expect(screen.queryByRole('button', { name: 'Insert' })).not.toBeInTheDocument()
+  const code = EditorView.findFromDOM(container.querySelector<HTMLElement>('.cm-editor')!)
+  act(() => code!.dispatch({ changes: { from: code!.state.doc.length, insert: '\nB-->C' } }))
+  await waitFor(() => expect(update).toBeEnabled(), { timeout: 2000 })
+  expect(updateDiagramById).not.toHaveBeenCalled()
+  expect(screen.getByRole('status')).toHaveTextContent('Click Update to apply.')
+  await user.click(update)
+  expect(updateDiagramById).toHaveBeenCalledOnce()
+  await waitFor(() => expect(update).toBeDisabled())
+})
+
 it('closes stale settings when the selected diagram changes and opens the new values', async () => {
   const first = createDiagramPayload('flowchart LR\nA-->B', 'png', 'forest')
   const second = createDiagramPayload('flowchart TD\nC-->D', 'png', 'neutral')

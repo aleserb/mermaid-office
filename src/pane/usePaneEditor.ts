@@ -7,6 +7,7 @@ import { getDiagramSettings, sameDiagramSettings, type DiagramSettings } from '.
 import { getPreferredSettings, getPreferredTheme, setPreferredSettings, setPreferredTheme } from '../preferences/diagramPreferences'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
 import { getSelectedDiagram, watchSelectedDiagram, type DiagramSelectionWatcher } from '../word/selection'
+import { isLargeDiagram } from './updateMode'
 
 export const LIVE_UPDATE_DELAY = 600
 
@@ -52,6 +53,8 @@ export function usePaneEditor() {
   const [pending, setPending] = useState<{ target: DiagramPayload | null } | null>(null)
   const [historyKey, setHistoryKey] = useState(0)
   const [settingsActive, setSettingsActive] = useState(false)
+  const [manualUpdates, setManualUpdates] = useState(() => isLargeDiagram(baseline.source))
+  const [updateRequested, setUpdateRequested] = useState<Draft | null>(null)
   const settingsPinned = useRef(false)
   const resumeAfterSettingsWrite = useRef(false)
   const mounted = useRef(false)
@@ -78,6 +81,8 @@ export function usePaneEditor() {
     setWordError('')
     setFailedWrite(null)
     setPending(null)
+    setManualUpdates(isLargeDiagram(next.source))
+    setUpdateRequested(null)
     setHistoryKey((key) => key + 1)
   }, [])
 
@@ -165,7 +170,10 @@ export function usePaneEditor() {
     const timer = window.setTimeout(async () => {
       try {
         const svg = await renderMermaid(draft.source, draft.theme, draft.settings)
-        if (active) setRendered({ draft, svg })
+        if (active) {
+          if (isLargeDiagram(draft.source, svg)) setManualUpdates(true)
+          setRendered({ draft, svg })
+        }
       } catch (error) {
         if (active) setDiagnostic(normalizeMermaidError(error, draft.source))
       }
@@ -179,14 +187,16 @@ export function usePaneEditor() {
   useEffect(() => {
     if (
       !ready || !target || !rendered || writing || busy.current || settingsActive || loadingSelection || pending ||
-      !sameDraft(rendered.draft, draft) || sameDraft(draft, target) || failedWrite === rendered
+      !sameDraft(rendered.draft, draft) || sameDraft(draft, target) || failedWrite === rendered ||
+      (manualUpdates && updateRequested !== draft)
     ) {
       return
     }
 
     // Only one Word write may be in flight. Edits made during it remain in draft
-    // and are written on the next pass, never replaced by a selection notification.
+    // for the next automatic pass or explicit Update, never replaced by selection.
     busy.current = true
+    setUpdateRequested(null)
     setWriting(true)
     setWordError('')
     void updateDiagramById(
@@ -217,16 +227,17 @@ export function usePaneEditor() {
         watcher.current?.refresh()
       }
     })
-  }, [draft, failedWrite, loadingSelection, pending, ready, rendered, settingsActive, target, writing])
+  }, [draft, failedWrite, loadingSelection, manualUpdates, pending, ready, rendered, settingsActive, target, updateRequested, writing])
 
   useEffect(() => {
     if (!settingsActive && resumeAfterSettingsWrite.current && !writing &&
-      (diagnostic || (failedWrite && failedWrite === rendered) || !target || sameDraft(draft, target))) {
+      (diagnostic || (failedWrite && failedWrite === rendered) || !target || sameDraft(draft, target) ||
+        (manualUpdates && !updateRequested))) {
       resumeAfterSettingsWrite.current = false
       settingsPinned.current = false
       watcher.current?.refresh()
     }
-  }, [diagnostic, draft, failedWrite, rendered, settingsActive, target, writing])
+  }, [diagnostic, draft, failedWrite, manualUpdates, rendered, settingsActive, target, updateRequested, writing])
 
   const beginSettings = () => {
     settingsPinned.current = true
@@ -250,6 +261,8 @@ export function usePaneEditor() {
     setDraft(next)
     setRendered(null)
     setDiagnostic(null)
+    setUpdateRequested(null)
+    if (isLargeDiagram(next.source)) setManualUpdates(true)
   }
 
   const changeSource = (source: string) => changeDraft({ ...draftRef.current, source })
@@ -261,6 +274,7 @@ export function usePaneEditor() {
 
   const applySettings = (theme: DiagramTheme, settings: DiagramSettings) => {
     changeDraft({ ...draftRef.current, theme, settings: { ...settings } })
+    if (targetRef.current) setUpdateRequested(draftRef.current)
     setPreferredTheme(theme)
     setPreferredSettings(settings)
   }
@@ -297,8 +311,22 @@ export function usePaneEditor() {
     }
   }
 
+  const canUpdate = ready && !!target && !sameDraft(draft, target) &&
+    Boolean(rendered && sameDraft(rendered.draft, draft)) && !diagnostic &&
+    !writing && !loadingSelection && !settingsActive && !pending
+
+  const update = () => {
+    if (!canUpdate || busy.current) {
+      setWordError('Wait for a valid diagram and finish the current action before updating.')
+      return
+    }
+    setFailedWrite(null)
+    setUpdateRequested(draft)
+  }
+
   return {
     draft, target, ready, writing, loadingSelection, diagnostic, wordError, pending, historyKey, settingsActive,
+    manualUpdates, canUpdate, update,
     dirty: !sameDraft(draft, target ?? baseline),
     rendering: !rendered || !sameDraft(rendered.draft, draft),
     canInsert: ready && !target && Boolean(rendered && sameDraft(rendered.draft, draft)) &&

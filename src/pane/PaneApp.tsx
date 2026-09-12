@@ -68,7 +68,9 @@ export function PaneApp() {
   const status = editor.writing
     ? 'Writing diagram to Word...'
     : editor.target && editor.dirty
-      ? 'Changes not yet written to Word.'
+      ? editor.manualUpdates
+        ? 'Changes not yet written to Word. Click Update to apply.'
+        : 'Changes not yet written to Word.'
       : ''
 
   return (
@@ -81,7 +83,13 @@ export function PaneApp() {
                 Insert
               </Button>
             )}
-            {editor.canRetry && (
+            {editor.target && editor.manualUpdates && (
+              <Button appearance="primary" size="small" disabled={!editor.canUpdate} onClick={editor.update}
+                title="Large diagrams update only when requested">
+                {editor.canRetry ? 'Retry update' : 'Update'}
+              </Button>
+            )}
+            {editor.canRetry && !editor.manualUpdates && (
               <Button size="small" disabled={busy} onClick={editor.retry}>Retry update</Button>
             )}
           </div>

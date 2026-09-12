@@ -1,4 +1,5 @@
 import { embedPayloadInPng, getPngDimensions, setPngPhysicalWidth } from '../metadata/pngMetadata'
+import { getSvgDimensions } from '../mermaid/svgDimensions'
 import { configureDiagramContentControl, suppressDiagramPlaceholder } from './contentControls'
 import { createDiagramPictureOoxml, type PictureOptions } from './pictureOoxml'
 import { getDiagramSettings, sameDiagramSettings, type DiagramSettings, type ImageQuality } from '../metadata/diagramSettings'
@@ -119,9 +120,7 @@ export function normalizeSvgDimensions(svg: string): {
 } {
   const svgDocument = new DOMParser().parseFromString(svg, 'image/svg+xml')
   const root = svgDocument.documentElement
-  const viewBox = root.getAttribute('viewBox')?.split(/\s+/).map(Number)
-  const sourceWidth = viewBox?.[2] || Number.parseFloat(root.getAttribute('width') || '') || 1200
-  const sourceHeight = viewBox?.[3] || Number.parseFloat(root.getAttribute('height') || '') || 800
+  const { width: sourceWidth, height: sourceHeight } = getSvgDimensions(root)
   root.setAttribute('width', String(sourceWidth))
   root.setAttribute('height', String(sourceHeight))
   root.style.removeProperty('max-width')
