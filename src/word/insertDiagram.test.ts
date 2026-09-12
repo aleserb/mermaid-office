@@ -130,22 +130,28 @@ describe('Word diagram insertion', () => {
     )
   })
 
-  it('replaces only the existing picture range when updating a diagram', async () => {
+  it('recreates the content control when updating a diagram', async () => {
     const sync = vi.fn().mockResolvedValue(undefined)
     const insertInlinePictureFromBase64 = vi.fn().mockReturnValue({
       altTextTitle: '',
       altTextDescription: '',
       width: 0,
       height: 0,
+      insertContentControl: vi.fn(),
     })
-    const getRange = vi.fn().mockReturnValue({ insertInlinePictureFromBase64 })
+    const track = vi.fn()
+    const untrack = vi.fn()
+    const getRange = vi.fn().mockReturnValue({
+      track,
+      untrack,
+      insertInlinePictureFromBase64,
+    })
     const existingPicture = {
       isNullObject: false,
       width: 324,
       altTextTitle: 'Mermaid diagram',
       altTextDescription: 'Diagram created with Mermaid Office.',
       load: vi.fn(),
-      getRange,
     }
     const existing = createDiagramPayload(
       'flowchart LR\nA --> B',
@@ -157,11 +163,28 @@ describe('Word diagram insertion', () => {
       isNullObject: false,
       tag: `mermaid-office:v1:${existing.id}`,
       load: vi.fn(),
-      select: vi.fn(),
+      delete: vi.fn(),
+      getRange,
       inlinePictures: {
         getFirstOrNullObject: vi.fn().mockReturnValue(existingPicture),
       },
     }
+    const replacementControl = {
+      tag: '',
+      title: '',
+      appearance: '',
+      cannotDelete: true,
+      cannotEdit: true,
+      select: vi.fn(),
+    }
+    const replacementPicture = {
+      altTextTitle: '',
+      altTextDescription: '',
+      width: 0,
+      height: 0,
+      insertContentControl: vi.fn().mockReturnValue(replacementControl),
+    }
+    insertInlinePictureFromBase64.mockReturnValue(replacementPicture)
     const context = {
       document: {
         getSelection: () => ({
@@ -177,7 +200,9 @@ describe('Word diagram insertion', () => {
 
     vi.stubGlobal('Word', {
       run: vi.fn(async (callback) => callback(context)),
-      InsertLocation: { replace: 'Replace' },
+      InsertLocation: { after: 'After' },
+      RangeLocation: { before: 'Before' },
+      ContentControlAppearance: { hidden: 'Hidden' },
     })
 
     await updateDiagram(
@@ -190,10 +215,19 @@ describe('Word diagram insertion', () => {
       { base64: transparentPixel, width: 100, height: 60 },
     )
 
-    expect(getRange).toHaveBeenCalledOnce()
+    expect(getRange).toHaveBeenCalledWith('Before')
+    expect(track).toHaveBeenCalledOnce()
     expect(insertInlinePictureFromBase64).toHaveBeenCalledWith(
       expect.any(String),
-      'Replace',
+      'After',
     )
+    expect(replacementPicture.insertContentControl).toHaveBeenCalledOnce()
+    expect(contentControl.delete).toHaveBeenCalledWith(false)
+    expect(
+      replacementPicture.insertContentControl.mock.invocationCallOrder[0],
+    ).toBeLessThan(contentControl.delete.mock.invocationCallOrder[0])
+    expect(replacementControl.tag).toBe(`mermaid-office:v1:${existing.id}`)
+    expect(replacementControl.select).toHaveBeenCalledOnce()
+    expect(untrack).toHaveBeenCalledOnce()
   })
 })

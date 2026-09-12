@@ -268,11 +268,6 @@ export async function updateDiagram(
       throw new Error('The selected Mermaid diagram no longer contains a picture.')
     }
 
-    const pictureRange = existingPicture.getRange()
-    const replacement = pictureRange.insertInlinePictureFromBase64(
-      png,
-      Word.InsertLocation.replace,
-    )
     const dimensions = applySize
       ? fitDiagram(
           raster.width,
@@ -285,16 +280,28 @@ export async function updateDiagram(
           width: existingPicture.width,
           height: existingPicture.width * (raster.height / raster.width),
         }
+    const insertionPoint = contentControl.getRange(Word.RangeLocation.before)
+    insertionPoint.track()
+    const replacement = insertionPoint.insertInlinePictureFromBase64(
+      png,
+      Word.InsertLocation.after,
+    )
     replacement.width = dimensions.width
     replacement.height = dimensions.height
     replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
     replacement.altTextDescription =
       existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
+    await context.sync()
+
+    const replacementControl = replacement.insertContentControl()
+    configureDiagramContentControl(replacementControl, payload)
+    contentControl.delete(false)
     context.document.settings.add(
       getDocumentSettingKey(payload.id),
       JSON.stringify(payload),
     )
-    contentControl.select()
+    replacementControl.select()
+    insertionPoint.untrack()
     await context.sync()
   })
 
