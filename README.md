@@ -67,7 +67,8 @@ the diagram's colors and exported PNG.
 The editor offers Mermaid's Default, Neutral, Dark, Forest, Neo, Redux Color,
 and monochrome Redux render themes, including their dark variants. The selected
 theme is stored with the diagram so it is restored when editing later. The most
-recently selected theme is also remembered for new diagrams.
+recently selected theme is also remembered for new diagrams. New users start
+with Redux Color when no theme preference has been saved.
 
 The ribbon's **Mermaid Editor** command opens this dialog directly without opening the
 task pane. The dialog shows **Insert** for a new diagram and **Update** when an

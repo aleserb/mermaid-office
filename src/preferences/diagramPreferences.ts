@@ -31,7 +31,7 @@ function writePreference(key: string, value: string): void {
 }
 
 export function getPreferredTheme(): DiagramTheme {
-  return readPreference(THEME_KEY, DIAGRAM_THEMES, 'default')
+  return readPreference(THEME_KEY, DIAGRAM_THEMES, 'redux-color')
 }
 
 export function setPreferredTheme(theme: DiagramTheme): void {

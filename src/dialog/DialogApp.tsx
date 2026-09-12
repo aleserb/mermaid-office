@@ -16,7 +16,7 @@ import { ThemePicker } from '../components/ThemePicker'
 import { normalizeMermaidError, type MermaidDiagnostic } from '../mermaid/diagnostics'
 import { renderMermaid } from '../mermaid/render'
 import type { DiagramSize, DiagramTheme } from '../metadata/payload'
-import { setPreferredTheme } from '../preferences/diagramPreferences'
+import { getPreferredTheme, setPreferredTheme } from '../preferences/diagramPreferences'
 import { rasterizeSvg } from '../word/insertDiagram'
 import { parseParentMessage, type DialogToParentMessage } from './messages'
 import './dialog.css'
@@ -27,7 +27,7 @@ function sendToParent(message: DialogToParentMessage) {
 
 export function DialogApp() {
   const [source, setSource] = useState('')
-  const [theme, setTheme] = useState<DiagramTheme>('default')
+  const [theme, setTheme] = useState<DiagramTheme>(getPreferredTheme)
   const [size, setSize] = useState<DiagramSize>('medium')
   const [mode, setMode] = useState<'insert' | 'update'>('insert')
   const [svg, setSvg] = useState('')
