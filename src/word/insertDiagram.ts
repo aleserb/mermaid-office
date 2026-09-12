@@ -295,10 +295,11 @@ export async function updateDiagram(
     configureDiagramContentControl(replacementControl, payload)
     await context.sync()
 
-    replacement.width = dimensions.width
-    replacement.height = dimensions.height
-    replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
-    replacement.altTextDescription =
+    const wrappedPicture = replacementControl.inlinePictures.getFirst()
+    wrappedPicture.width = dimensions.width
+    wrappedPicture.height = dimensions.height
+    wrappedPicture.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
+    wrappedPicture.altTextDescription =
       existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
     context.document.settings.add(
       getDocumentSettingKey(payload.id),

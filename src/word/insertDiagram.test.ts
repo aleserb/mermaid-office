@@ -176,6 +176,9 @@ describe('Word diagram insertion', () => {
       cannotDelete: true,
       cannotEdit: true,
       select: vi.fn(),
+      inlinePictures: {
+        getFirst: vi.fn(),
+      },
     }
     const replacementPicture = {
       altTextTitle: '',
@@ -184,6 +187,13 @@ describe('Word diagram insertion', () => {
       height: 0,
       insertContentControl: vi.fn().mockReturnValue(replacementControl),
     }
+    const wrappedPicture = {
+      altTextTitle: '',
+      altTextDescription: '',
+      width: 0,
+      height: 0,
+    }
+    replacementControl.inlinePictures.getFirst.mockReturnValue(wrappedPicture)
     insertInlinePictureFromBase64.mockReturnValue(replacementPicture)
     const context = {
       document: {
@@ -226,9 +236,10 @@ describe('Word diagram insertion', () => {
       contentControl.delete.mock.invocationCallOrder[0],
     ).toBeLessThan(insertInlinePictureFromBase64.mock.invocationCallOrder[0])
     expect(replacementPicture.insertContentControl).toHaveBeenCalledOnce()
+    expect(replacementControl.inlinePictures.getFirst).toHaveBeenCalledOnce()
     expect(replacementControl.tag).toBe(`mermaid-office:v1:${existing.id}`)
-    expect(replacementPicture.width).toBe(324)
-    expect(replacementPicture.height).toBeCloseTo(194.4, 2)
+    expect(wrappedPicture.width).toBe(324)
+    expect(wrappedPicture.height).toBeCloseTo(194.4, 2)
     expect(replacementControl.select).toHaveBeenCalledOnce()
     expect(untrack).toHaveBeenCalledOnce()
   })
