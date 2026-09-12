@@ -289,15 +289,17 @@ export async function updateDiagram(
       png,
       Word.InsertLocation.after,
     )
+    await context.sync()
+
+    const replacementControl = replacement.insertContentControl()
+    configureDiagramContentControl(replacementControl, payload)
+    await context.sync()
+
     replacement.width = dimensions.width
     replacement.height = dimensions.height
     replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
     replacement.altTextDescription =
       existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
-    await context.sync()
-    const replacementControl = replacement.insertContentControl()
-    configureDiagramContentControl(replacementControl, payload)
-    configureDiagramContentControl(replacementControl, payload)
     context.document.settings.add(
       getDocumentSettingKey(payload.id),
       JSON.stringify(payload),

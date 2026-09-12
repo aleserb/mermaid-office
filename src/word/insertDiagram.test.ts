@@ -227,6 +227,8 @@ describe('Word diagram insertion', () => {
     ).toBeLessThan(insertInlinePictureFromBase64.mock.invocationCallOrder[0])
     expect(replacementPicture.insertContentControl).toHaveBeenCalledOnce()
     expect(replacementControl.tag).toBe(`mermaid-office:v1:${existing.id}`)
+    expect(replacementPicture.width).toBe(324)
+    expect(replacementPicture.height).toBeCloseTo(194.4, 2)
     expect(replacementControl.select).toHaveBeenCalledOnce()
     expect(untrack).toHaveBeenCalledOnce()
   })
