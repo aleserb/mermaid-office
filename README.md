@@ -24,6 +24,8 @@ The final PNG is rasterized directly from SVG, targeting 2x the diagram's native
 dimensions or 4x its intended display width, whichever provides more detail.
 Exports are bounded to 8192 pixels per side and about 16.8 megapixels to limit memory use.
 Cropping, displayed Word size, and embedded source metadata are preserved.
+Pictures are inserted and updated as an inline Word drawing with explicit frame
+and image dimensions, keeping higher-resolution pixels inside the picture frame.
 PNG remains a raster format, so extreme zoom can still reveal pixels. Existing
 images gain the higher resolution when a valid edit regenerates them.
 

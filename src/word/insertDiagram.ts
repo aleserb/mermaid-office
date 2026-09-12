@@ -1,5 +1,6 @@
 import { embedPayloadInPng, setPngPhysicalWidth } from '../metadata/pngMetadata'
 import { configureDiagramContentControl, suppressDiagramPlaceholder } from './contentControls'
+import { createDiagramPictureOoxml } from './pictureOoxml'
 import {
   createDiagramPayload,
   getContentControlTag,
@@ -199,11 +200,6 @@ export async function svgToPngBase64(svg: string): Promise<string> {
   return (await rasterizeSvg(svg)).base64
 }
 
-function configureDiagramPicture(picture: Word.InlinePicture) {
-  picture.altTextTitle = 'Mermaid diagram'
-  picture.altTextDescription = 'Diagram created with Mermaid Office.'
-}
-
 async function separateEnclosingDiagram(
   context: Word.RequestContext,
   selection: Word.Range = context.document.getSelection(),
@@ -268,25 +264,10 @@ export async function insertPngObject(
       true,
     )
     const png = setPngPhysicalWidth(raster.base64, dimensions.width)
-    const picture = contentControl.insertInlinePictureFromBase64(
-      png,
+    contentControl.insertOoxml(
+      createDiagramPictureOoxml(png, dimensions),
       Word.InsertLocation.replace,
     )
-    picture.width = dimensions.width
-    picture.height = dimensions.height
-    configureDiagramPicture(picture)
-    await context.sync()
-
-    // Word can retain the placeholder frame dimensions for the first image placed in a
-    // new content control. Replacing it after the control contains a picture forces the
-    // same layout pass used when updating an existing diagram.
-    const replacement = contentControl.insertInlinePictureFromBase64(
-      png,
-      Word.InsertLocation.replace,
-    )
-    replacement.width = dimensions.width
-    replacement.height = dimensions.height
-    configureDiagramPicture(replacement)
     context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
     await context.sync()
   })
@@ -356,11 +337,11 @@ export async function updateDiagram(
     }
 
     suppressDiagramPlaceholder(contentControl)
-    const replacement = replaceDiagramPicture(context, existingPicture, raster, payload, applySize)
-    replacement.altTextTitle = existingPicture.altTextTitle || 'Mermaid diagram'
-    replacement.altTextDescription =
-      existingPicture.altTextDescription || 'Diagram created with Mermaid Office.'
-    replacement.getRange().select()
+    const replacement = replaceDiagramPicture(context, existingPicture, raster, payload, applySize, {
+      altTextTitle: existingPicture.altTextTitle || 'Mermaid diagram',
+      altTextDescription: existingPicture.altTextDescription || 'Diagram created with Mermaid Office.',
+    })
+    replacement.select()
     await context.sync()
   })
 
@@ -373,7 +354,8 @@ function replaceDiagramPicture(
   raster: RasterizedDiagram,
   payload: DiagramPayload,
   applySize: boolean,
-): Word.InlinePicture {
+  altText: Pick<Word.InlinePicture, 'altTextTitle' | 'altTextDescription'> = existingPicture,
+): Word.Range {
   const dimensions = applySize
     ? fitDiagram(raster.width, raster.height, DIAGRAM_WIDTHS[payload.size], 650, true)
     : {
@@ -386,14 +368,14 @@ function replaceDiagramPicture(
   )
   // Replace only the picture: deleting its control can invalidate Word's range
   // and remove surrounding text or other diagrams.
-  const replacement = existingPicture.getRange().insertInlinePictureFromBase64(
-    png,
+  const replacement = existingPicture.getRange().insertOoxml(
+    createDiagramPictureOoxml(png, {
+      ...dimensions,
+      altTextTitle: altText.altTextTitle,
+      altTextDescription: altText.altTextDescription,
+    }),
     Word.InsertLocation.replace,
   )
-  replacement.width = dimensions.width
-  replacement.height = dimensions.height
-  replacement.altTextTitle = existingPicture.altTextTitle
-  replacement.altTextDescription = existingPicture.altTextDescription
   context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
   return replacement
 }

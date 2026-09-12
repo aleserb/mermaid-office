@@ -15,23 +15,35 @@ import { embedPayloadInPng, readPayloadFromPng, setPngPhysicalWidth } from '../m
 const transparentPixel =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwX9WQAAAABJRU5ErkJggg=='
 
+function readPictureOoxml(xml: string) {
+  const document = new DOMParser().parseFromString(xml, 'application/xml')
+  expect(document.querySelector('parsererror')).toBeNull()
+  const extent = document.getElementsByTagNameNS(
+    'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'extent',
+  )[0]
+  const properties = document.getElementsByTagNameNS(
+    'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing', 'docPr',
+  )[0]
+  return {
+    base64: document.getElementsByTagNameNS('*', 'binaryData')[0].textContent!,
+    width: Number(extent.getAttribute('cx')) / 12700,
+    height: Number(extent.getAttribute('cy')) / 12700,
+    altTextTitle: properties.getAttribute('title'),
+    altTextDescription: properties.getAttribute('descr'),
+  }
+}
+
 function mockSavedDiagram() {
   const existing = createDiagramPayload('flowchart LR\nA --> B', 'png', 'forest', 'large')
   const select = vi.fn()
-  const replacement = {
-    width: 0,
-    height: 0,
-    altTextTitle: '',
-    altTextDescription: '',
-    getRange: vi.fn().mockReturnValue({ select }),
-  }
+  const replacement = { select }
   const insertPicture = vi.fn().mockReturnValue(replacement)
   const picture = {
     width: 287,
     altTextTitle: 'Custom diagram title',
     altTextDescription: 'Accessible description',
     load: vi.fn(),
-    getRange: vi.fn().mockReturnValue({ insertInlinePictureFromBase64: insertPicture }),
+    getRange: vi.fn().mockReturnValue({ insertOoxml: insertPicture }),
   }
   const pictures = { items: [picture], load: vi.fn() }
   const control = {
@@ -39,6 +51,7 @@ function mockSavedDiagram() {
     delete: vi.fn(),
     select: vi.fn(),
     insertInlinePictureFromBase64: vi.fn(),
+    insertOoxml: vi.fn(),
   }
   const controls = { items: [control], load: vi.fn() }
   const setting = { isNullObject: false, value: JSON.stringify(existing), load: vi.fn() }
@@ -61,7 +74,7 @@ function mockSavedDiagram() {
   })
   return {
     existing, picture, pictures, control, controls, setting, settingsAdd,
-    getByTag, getSelection, insertPicture, replacement, select,
+    getByTag, getSelection, insertPicture, replacement, select, context,
   }
 }
 
@@ -115,22 +128,15 @@ describe('Word diagram insertion', () => {
     'inserts independently of an %s enclosing control',
     async (enclosingKind) => {
     const sync = vi.fn().mockResolvedValue(undefined)
-    const insertInlinePictureFromBase64 = vi.fn()
+    const insertOoxml = vi.fn()
     const contentControl = {
       tag: '',
       title: '',
       appearance: '',
       cannotDelete: true,
       cannotEdit: true,
-      insertInlinePictureFromBase64,
+      insertOoxml,
     }
-    const picture = {
-      altTextTitle: '',
-      altTextDescription: '',
-      width: 0,
-      height: 0,
-    }
-    insertInlinePictureFromBase64.mockReturnValue(picture)
     const insertContentControl = vi.fn().mockReturnValue(contentControl)
     const isolated = { tag: '', title: '', appearance: '', cannotDelete: true, cannotEdit: true }
     const pictureRange = {
@@ -180,33 +186,28 @@ describe('Word diagram insertion', () => {
       payload,
     )
 
-    expect(insertInlinePictureFromBase64).toHaveBeenCalledTimes(2)
+    expect(insertOoxml).toHaveBeenCalledOnce()
     expect(contentControl).toHaveProperty('placeholderText', ' ')
     if (enclosingKind === 'expanded') {
       expect(isolated).toHaveProperty('placeholderText', ' ')
     }
-    expect(insertInlinePictureFromBase64).toHaveBeenNthCalledWith(
+    expect(insertOoxml).toHaveBeenNthCalledWith(
       1,
       expect.any(String),
       'Replace',
     )
-    expect(insertInlinePictureFromBase64).toHaveBeenNthCalledWith(
-      2,
-      expect.any(String),
-      'Replace',
-    )
-    const syncCount = enclosingKind === 'expanded' ? 9 : enclosingKind === 'empty' ? 6 : 4
+    const syncCount = enclosingKind === 'expanded' ? 8 : enclosingKind === 'empty' ? 5 : 3
     expect(sync).toHaveBeenCalledTimes(syncCount)
-    expect(sync.mock.invocationCallOrder[syncCount - 3]).toBeLessThan(
-      insertInlinePictureFromBase64.mock.invocationCallOrder[0],
-    )
     expect(sync.mock.invocationCallOrder[syncCount - 2]).toBeLessThan(
-      insertInlinePictureFromBase64.mock.invocationCallOrder[1],
+      insertOoxml.mock.invocationCallOrder[0],
     )
     expect(contentControl.tag).toBe(`mermaid-office:v1:${payload.id}`)
     expect(contentControl.appearance).toBe('Hidden')
+    const picture = readPictureOoxml(insertOoxml.mock.calls[0][0])
     expect(picture.width).toBe(324)
     expect(picture.height).toBeCloseTo(79.61, 2)
+    expect(picture.altTextTitle).toBe('Mermaid diagram')
+    expect(picture.altTextDescription).toBe('Diagram created with Mermaid Office.')
     expect(settingsAdd).toHaveBeenCalledWith(
       getDocumentSettingKey(payload.id),
       JSON.stringify(payload),
@@ -235,16 +236,9 @@ describe('Word diagram insertion', () => {
   it.each([true, false])('only updates with a selected picture: %s', async (pictureSelected) => {
     const sync = vi.fn().mockResolvedValue(undefined)
     const selectReplacement = vi.fn()
-    const replacementPicture = {
-      altTextTitle: '',
-      altTextDescription: '',
-      width: 0,
-      height: 0,
-      getRange: vi.fn().mockReturnValue({ select: selectReplacement }),
-    }
-    const insertInlinePictureFromBase64 = vi.fn().mockReturnValue(replacementPicture)
+    const insertOoxml = vi.fn().mockReturnValue({ select: selectReplacement })
     const getRange = vi.fn().mockReturnValue({
-      insertInlinePictureFromBase64,
+      insertOoxml,
     })
     const existingPicture = {
       isNullObject: !pictureSelected,
@@ -302,7 +296,7 @@ describe('Word diagram insertion', () => {
     if (!pictureSelected) {
       await expect(update).rejects.toThrow('Select the Mermaid diagram')
       expect(contentControl.delete).not.toHaveBeenCalled()
-      expect(insertInlinePictureFromBase64).not.toHaveBeenCalled()
+      expect(insertOoxml).not.toHaveBeenCalled()
       return
     }
     await update
@@ -310,17 +304,18 @@ describe('Word diagram insertion', () => {
     expect(getRange).toHaveBeenCalledOnce()
     expect(contentControl.delete).not.toHaveBeenCalled()
     expect(contentControl.inlinePictures.getFirstOrNullObject).not.toHaveBeenCalled()
-    expect(insertInlinePictureFromBase64).toHaveBeenCalledWith(
+    expect(insertOoxml).toHaveBeenCalledWith(
       expect.any(String),
       'Replace',
     )
     expect(contentControl.tag).toBe(`mermaid-office:v1:${existing.id}`)
     expect(contentControl).toHaveProperty('placeholderText', ' ')
+    const replacementPicture = readPictureOoxml(insertOoxml.mock.calls[0][0])
     expect(replacementPicture.width).toBe(324)
     expect(replacementPicture.height).toBeCloseTo(194.4, 2)
     expect(selectReplacement).toHaveBeenCalledOnce()
     expect(contentControl.select).not.toHaveBeenCalled()
-    expect(readPayloadFromPng(insertInlinePictureFromBase64.mock.calls[0][0])).toEqual({
+    expect(readPayloadFromPng(replacementPicture.base64)).toEqual({
       ...existing,
       source: 'flowchart LR\nA',
     })
@@ -329,9 +324,8 @@ describe('Word diagram insertion', () => {
   it.each([insertDiagramWithPayload, insertDiagram])(
     '%s preserves insertion metadata and the caller return contract',
     async (insert) => {
-      const picture = { width: 0, height: 0, altTextTitle: '', altTextDescription: '' }
-      const insertPicture = vi.fn().mockReturnValue(picture)
-      const control = { tag: '', insertInlinePictureFromBase64: insertPicture }
+      const insertPicture = vi.fn()
+      const control = { tag: '', insertOoxml: insertPicture }
       const settingsAdd = vi.fn()
       vi.stubGlobal('Office', { context: { document: {} } })
       vi.stubGlobal('Word', {
@@ -351,7 +345,8 @@ describe('Word diagram insertion', () => {
       const result = await insert('<svg/>', 'flowchart LR\nA', undefined, undefined, {
         base64: transparentPixel, width: 100, height: 50,
       })
-      const payload = readPayloadFromPng(insertPicture.mock.calls[1][0])
+      const picture = readPictureOoxml(insertPicture.mock.calls[0][0])
+      const payload = readPayloadFromPng(picture.base64)
       expect(payload).toMatchObject({
         source: 'flowchart LR\nA', format: 'png', theme: 'default', size: 'medium',
       })
@@ -360,17 +355,16 @@ describe('Word diagram insertion', () => {
       expect(settingsAdd).toHaveBeenCalledWith(getDocumentSettingKey(payload!.id), JSON.stringify(payload))
       expect(picture.width).toBe(324)
       expect(picture.height).toBe(162)
-      expect(insertPicture).toHaveBeenCalledTimes(2)
+      expect(insertPicture).toHaveBeenCalledOnce()
     },
   )
 
   it.each(['picture', 'text', 'cursor'])('guards pane insertion when selection is %s', async (selectionKind) => {
     const pictureSelected = selectionKind === 'picture'
     const blocked = selectionKind !== 'cursor'
-    const picture = { width: 0, height: 0, altTextTitle: '', altTextDescription: '' }
-    const insertPicture = vi.fn().mockReturnValue(picture)
+    const insertPicture = vi.fn()
     const insertContentControl = vi.fn().mockReturnValue({
-      insertInlinePictureFromBase64: insertPicture,
+      insertOoxml: insertPicture,
     })
     const enclosing = { isNullObject: true, load: vi.fn(), delete: vi.fn() }
     const getSelectedPicture = vi.fn().mockReturnValue({ isNullObject: !pictureSelected })
@@ -406,7 +400,7 @@ describe('Word diagram insertion', () => {
       expect(settingsAdd).not.toHaveBeenCalled()
     } else {
       await expect(result).resolves.toMatchObject({ source: 'flowchart LR\nA', format: 'png' })
-      expect(insertPicture).toHaveBeenCalledTimes(2)
+      expect(insertPicture).toHaveBeenCalledOnce()
       expect(sync.mock.invocationCallOrder[0]).toBeLessThan(
         insertContentControl.mock.invocationCallOrder[0],
       )
@@ -436,7 +430,7 @@ describe('Word diagram insertion', () => {
     const freshSelection = {
       isEmpty: empty, load: vi.fn(),
       inlinePictures: { getFirstOrNullObject: () => ({ isNullObject: true }) },
-      insertContentControl: vi.fn().mockReturnValue({ insertInlinePictureFromBase64: insertPicture }),
+      insertContentControl: vi.fn().mockReturnValue({ insertOoxml: insertPicture }),
     }
     const getSelection = vi.fn().mockReturnValueOnce(originalSelection).mockReturnValue(freshSelection)
     vi.stubGlobal('Word', {
@@ -461,7 +455,7 @@ describe('Word diagram insertion', () => {
     expect(originalSelection.insertContentControl).not.toHaveBeenCalled()
     expect(freshSelection.load).toHaveBeenCalledWith('isEmpty')
     expect(freshSelection.insertContentControl).toHaveBeenCalledTimes(empty ? 1 : 0)
-    expect(insertPicture).toHaveBeenCalledTimes(empty ? 2 : 0)
+    expect(insertPicture).toHaveBeenCalledTimes(empty ? 1 : 0)
   })
 })
 
@@ -481,9 +475,11 @@ describe('Word diagram updates by saved ID', () => {
     expect(mock.getByTag).toHaveBeenCalledWith(getContentControlTag(mock.existing.id))
     expect(mock.control).toHaveProperty('placeholderText', ' ')
     expect(mock.insertPicture).toHaveBeenCalledExactlyOnceWith(
-      setPngPhysicalWidth(embedPayloadInPng(transparentPixel, payload), width), 'Replace',
+      expect.any(String), 'Replace',
     )
-    expect(mock.replacement).toMatchObject({
+    const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
+    expect(replacement).toEqual({
+      base64: setPngPhysicalWidth(embedPayloadInPng(transparentPixel, payload), width),
       width, height: width * 0.6,
       altTextTitle: mock.picture.altTextTitle,
       altTextDescription: mock.picture.altTextDescription,
@@ -491,10 +487,10 @@ describe('Word diagram updates by saved ID', () => {
     expect(mock.settingsAdd).toHaveBeenCalledWith(getDocumentSettingKey(mock.existing.id), JSON.stringify(payload))
     expect(mock.getSelection).not.toHaveBeenCalled()
     expect(mock.select).not.toHaveBeenCalled()
-    expect(mock.replacement.getRange).not.toHaveBeenCalled()
     expect(mock.control.select).not.toHaveBeenCalled()
     expect(mock.control.delete).not.toHaveBeenCalled()
     expect(mock.control.insertInlinePictureFromBase64).not.toHaveBeenCalled()
+    expect(mock.control.insertOoxml).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -522,6 +518,7 @@ describe('Word diagram updates by saved ID', () => {
     expect(mock.settingsAdd).not.toHaveBeenCalled()
     expect(mock.control.delete).not.toHaveBeenCalled()
     expect(mock.control.insertInlinePictureFromBase64).not.toHaveBeenCalled()
+    expect(mock.control.insertOoxml).not.toHaveBeenCalled()
     expect(mock.getSelection).not.toHaveBeenCalled()
     expect(mock.select).not.toHaveBeenCalled()
   })
@@ -530,9 +527,10 @@ describe('Word diagram updates by saved ID', () => {
     const mock = mockSavedDiagram()
     mock.setting.isNullObject = true
     await updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', 'dark', 'small', true, raster)
-    const payload = readPayloadFromPng(mock.insertPicture.mock.calls[0][0])
+    const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
+    const payload = readPayloadFromPng(replacement.base64)
     expect(payload).toEqual({ ...mock.existing, source: 'flowchart LR\nC', theme: 'dark', size: 'small' })
-    expect(mock.replacement.width).toBe(216)
+    expect(replacement.width).toBe(216)
     expect(mock.settingsAdd).toHaveBeenCalledWith(getDocumentSettingKey(mock.existing.id), JSON.stringify(payload))
   })
 
@@ -541,11 +539,26 @@ describe('Word diagram updates by saved ID', () => {
     mock.picture.altTextTitle = ''
     mock.picture.altTextDescription = ''
     await updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', 'dark', 'small', false, raster)
-    expect(mock.replacement).toMatchObject({
+    const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
+    expect(replacement).toMatchObject({
       width: 287, height: 287 * 0.6, altTextTitle: '', altTextDescription: '',
     })
-    expect(readPayloadFromPng(mock.insertPicture.mock.calls[0][0])).toMatchObject({
+    expect(readPayloadFromPng(replacement.base64)).toMatchObject({
       theme: 'dark', size: 'small', source: 'flowchart LR\nC', format: 'png',
     })
+
+  })
+
+  it('surfaces a failed OOXML replacement without deleting the diagram control', async () => {
+    const mock = mockSavedDiagram()
+    mock.context.sync
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Word could not replace the picture'))
+    await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster))
+      .rejects.toThrow('Word could not replace the picture')
+    expect(mock.control.delete).not.toHaveBeenCalled()
+    expect(mock.select).not.toHaveBeenCalled()
   })
 })
