@@ -83,20 +83,33 @@ export function findVisiblePixelBounds(
       }
 }
 
-export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
+export function normalizeSvgDimensions(svg: string): {
+  svg: string
+  width: number
+  height: number
+} {
   const svgDocument = new DOMParser().parseFromString(svg, 'image/svg+xml')
   const root = svgDocument.documentElement
   const viewBox = root.getAttribute('viewBox')?.split(/\s+/).map(Number)
   const sourceWidth = viewBox?.[2] || Number.parseFloat(root.getAttribute('width') || '') || 1200
   const sourceHeight = viewBox?.[3] || Number.parseFloat(root.getAttribute('height') || '') || 800
-  const scale = Math.min(2, 4096 / Math.max(sourceWidth, sourceHeight))
-  const width = Math.max(1, Math.round(sourceWidth * scale))
-  const height = Math.max(1, Math.round(sourceHeight * scale))
   root.setAttribute('width', String(sourceWidth))
   root.setAttribute('height', String(sourceHeight))
   root.style.removeProperty('max-width')
-  const normalizedSvg = new XMLSerializer().serializeToString(root)
-  const url = URL.createObjectURL(new Blob([normalizedSvg], { type: 'image/svg+xml' }))
+
+  return {
+    svg: new XMLSerializer().serializeToString(root),
+    width: sourceWidth,
+    height: sourceHeight,
+  }
+}
+
+export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
+  const normalized = normalizeSvgDimensions(svg)
+  const scale = Math.min(2, 4096 / Math.max(normalized.width, normalized.height))
+  const width = Math.max(1, Math.round(normalized.width * scale))
+  const height = Math.max(1, Math.round(normalized.height * scale))
+  const url = URL.createObjectURL(new Blob([normalized.svg], { type: 'image/svg+xml' }))
 
   try {
     const image = new Image()
@@ -112,7 +125,7 @@ export async function rasterizeSvg(svg: string): Promise<RasterizedDiagram> {
     }
 
     context.scale(scale, scale)
-    context.drawImage(image, 0, 0, sourceWidth, sourceHeight)
+    context.drawImage(image, 0, 0, normalized.width, normalized.height)
 
     const bounds = findVisiblePixelBounds(
       context.getImageData(0, 0, width, height).data,
@@ -372,7 +385,11 @@ export async function insertDiagram(
 
   if (isSvgInsertionSupported()) {
     const payload = createDiagramPayload(source, 'svg', theme, size)
-    await setSelectedData(embedPayloadInSvg(svg, payload), Office.CoercionType.XmlSvg)
+    const normalized = normalizeSvgDimensions(svg)
+    await setSelectedData(
+      embedPayloadInSvg(normalized.svg, payload),
+      Office.CoercionType.XmlSvg,
+    )
     await wrapSelectedSvgObject(payload)
     return 'svg'
   }

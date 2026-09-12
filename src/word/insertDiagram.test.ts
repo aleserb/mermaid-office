@@ -4,6 +4,7 @@ import {
   findVisiblePixelBounds,
   insertPngObject,
   isSvgInsertionSupported,
+  normalizeSvgDimensions,
 } from './insertDiagram'
 import { createDiagramPayload, getDocumentSettingKey } from '../metadata/payload'
 
@@ -57,6 +58,18 @@ describe('isSvgInsertionSupported', () => {
       height: 2,
     })
     expect(findVisiblePixelBounds(new Uint8ClampedArray(16), 2, 2)).toBeNull()
+  })
+
+  it('replaces responsive Mermaid dimensions with explicit SVG bounds', () => {
+    const result = normalizeSvgDimensions(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="100%" style="max-width: 262.5px;" viewBox="0 0 262.5 64.5"></svg>',
+    )
+
+    expect(result.width).toBe(262.5)
+    expect(result.height).toBe(64.5)
+    expect(result.svg).toContain('width="262.5"')
+    expect(result.svg).toContain('height="64.5"')
+    expect(result.svg).not.toContain('max-width')
   })
 
   it('commits a content control before inserting a PNG into it', async () => {
