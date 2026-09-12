@@ -36,7 +36,7 @@ the sideloaded manifest separately from the hosted web application.
 When the task pane is open, selecting an inserted Mermaid diagram loads its
 stored source and theme into the editor automatically. Saving replaces the
 selected picture in place while preserving its displayed width and alternative
-text. Use **New diagram** to leave edit mode.
+text. Move the cursor away from the diagram to leave edit mode.
 
 When Word preserves the original PNG or SVG bytes during copy/paste, selecting
 the pasted diagram restores its editable Mermaid source from embedded metadata.

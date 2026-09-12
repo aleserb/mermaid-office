@@ -18,7 +18,6 @@ afterEach(() => {
 })
 
 it('keeps the dialog light even with dark host, system, and legacy message preferences', async () => {
-  vi.stubGlobal('__BUILD_VERSION__', 'test')
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
     matches: true,
     addEventListener: vi.fn(),
@@ -53,6 +52,8 @@ it('keeps the dialog light even with dark host, system, and legacy message prefe
   })
 
   const { container } = render(<DialogApp />)
+  expect(container.querySelector('.build-version')).toBeNull()
+  expect(screen.queryByText(/^Build /)).not.toBeInTheDocument()
   const provider = container.querySelector<HTMLElement>('.fui-FluentProvider')
   if (!provider) throw new Error('Dialog theme provider was not rendered.')
   expect(provider.style.colorScheme).toBe('light')

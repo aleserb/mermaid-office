@@ -4,7 +4,6 @@ import {
   MessageBar,
   MessageBarBody,
   Spinner,
-  Text,
   webLightTheme,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
@@ -115,9 +114,6 @@ export function DialogApp() {
       <main className="dialog-shell">
         <header className="dialog-header">
           <div className="diagram-options">
-            <Text className="build-version" size={200}>
-              Build {__BUILD_VERSION__}
-            </Text>
             <SyntaxHelpLink />
             <ThemePicker
               value={theme}

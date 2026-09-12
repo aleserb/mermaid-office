@@ -14,10 +14,6 @@
   gap: 10px;
 }
 
-.pane-build {
-  color: var(--colorNeutralForeground3);
-}
-
 .pane-actions {
   display: flex;
   flex-wrap: wrap;

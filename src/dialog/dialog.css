@@ -17,11 +17,6 @@
   justify-content: space-between;
 }
 
-.build-version {
-  color: var(--colorNeutralForeground3, #616161);
-  white-space: nowrap;
-}
-
 .dialog-actions {
   display: flex;
   flex-wrap: wrap;

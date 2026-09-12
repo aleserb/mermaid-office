@@ -26,19 +26,17 @@ export function PaneApp() {
     ? 'Writing diagram to Word...'
     : editor.target
       ? editor.dirty ? 'Changes not yet written to Word.' : 'Diagram is up to date in Word.'
-      : 'Place the cursor in Word and insert your diagram to start live updates.'
+      : ''
 
   return (
     <FluentProvider theme={webLightTheme} style={{ colorScheme: 'light' }}>
       <main className="pane-shell">
         <header className="pane-header">
-          <Caption1 className="pane-build">Build {__BUILD_VERSION__} - Experimental pane</Caption1>
           <div className="diagram-options">
             <SyntaxHelpLink />
             <ThemePicker value={editor.draft.theme} onChange={editor.changeTheme} />
           </div>
-          <div className="pane-actions">
-            <Button disabled={busy} onClick={editor.newDiagram}>New diagram</Button>
+          {(!editor.target || editor.canRetry) && <div className="pane-actions">
             {!editor.target && (
               <Button appearance="primary" disabled={!editor.canInsert} onClick={() => void editor.insert()}>
                 Insert diagram
@@ -47,10 +45,10 @@ export function PaneApp() {
             {editor.canRetry && (
               <Button disabled={busy} onClick={editor.retry}>Retry update</Button>
             )}
-          </div>
+          </div>}
         </header>
 
-        <Caption1 role="status">{status}</Caption1>
+        {status && <Caption1 role="status">{status}</Caption1>}
         {editor.target && (
           <Caption1>Select another diagram to edit it, or a blank line to insert a new one.</Caption1>
         )}

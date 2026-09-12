@@ -210,7 +210,7 @@ describe('code-only pane workflow', () => {
     const { result } = await openPane(existing)
     await renderPending()
     act(() => result.current.changeSource('flowchart LR\nUnsaved'))
-    act(() => result.current.newDiagram())
+    act(() => selectInWord(null))
     expect(result.current.pending).not.toBeNull()
     await renderPending()
     expect(updateDiagramById).not.toHaveBeenCalled()
@@ -246,9 +246,9 @@ describe('code-only pane workflow', () => {
     expect(result.current.pending).toBeNull()
   })
 
-  it('can reselect the same picture after explicitly starting a new diagram', async () => {
+  it('can reselect the same picture after moving to a blank line', async () => {
     const { result } = await openPane(existing)
-    act(() => result.current.newDiagram())
+    act(() => selectInWord(null))
     expect(result.current.target).toBeNull()
     act(() => selectInWord(existing))
     expect(result.current.target?.id).toBe(existing.id)

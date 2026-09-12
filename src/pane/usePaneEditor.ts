@@ -256,12 +256,6 @@ export function usePaneEditor() {
       !diagnostic && !writing && !loadingSelection,
     canRetry: Boolean(failedWrite && rendered === failedWrite),
     changeSource, changeTheme, insert,
-    newDiagram: () => {
-      if (!busy.current) {
-        lastSelectionId.current = undefined
-        requestTarget(null)
-      }
-    },
     keepEditing: () => setPending(null),
     discardAndSwitch: () => { if (pending && !busy.current) activate(pending.target) },
     retry: () => setFailedWrite(null),
