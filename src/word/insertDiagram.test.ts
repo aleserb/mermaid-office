@@ -98,19 +98,19 @@ describe('Word diagram insertion', () => {
       'medium',
     )
     await insertPngObject(
-      { base64: 'png-data', width: 262.5, height: 64.5 },
+      { base64: transparentPixel, width: 262.5, height: 64.5 },
       payload,
     )
 
     expect(insertInlinePictureFromBase64).toHaveBeenCalledTimes(2)
     expect(insertInlinePictureFromBase64).toHaveBeenNthCalledWith(
       1,
-      'png-data',
+      expect.any(String),
       'Replace',
     )
     expect(insertInlinePictureFromBase64).toHaveBeenNthCalledWith(
       2,
-      'png-data',
+      expect.any(String),
       'Replace',
     )
     expect(sync).toHaveBeenCalledTimes(3)

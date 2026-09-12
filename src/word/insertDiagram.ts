@@ -1,4 +1,4 @@
-import { embedPayloadInPng } from '../metadata/pngMetadata'
+import { embedPayloadInPng, setPngPhysicalWidth } from '../metadata/pngMetadata'
 import {
   createDiagramPayload,
   getContentControlTag,
@@ -182,16 +182,17 @@ export async function insertPngObject(
     configureDiagramContentControl(contentControl, payload)
     await context.sync()
 
-    const picture = contentControl.insertInlinePictureFromBase64(
-      raster.base64,
-      Word.InsertLocation.replace,
-    )
     const dimensions = fitDiagram(
       raster.width,
       raster.height,
       DIAGRAM_WIDTHS[payload.size],
       650,
       true,
+    )
+    const png = setPngPhysicalWidth(raster.base64, dimensions.width)
+    const picture = contentControl.insertInlinePictureFromBase64(
+      png,
+      Word.InsertLocation.replace,
     )
     picture.width = dimensions.width
     picture.height = dimensions.height
@@ -202,7 +203,7 @@ export async function insertPngObject(
     // new content control. Replacing it after the control contains a picture forces the
     // same layout pass used when updating an existing diagram.
     const replacement = contentControl.insertInlinePictureFromBase64(
-      raster.base64,
+      png,
       Word.InsertLocation.replace,
     )
     replacement.width = dimensions.width
@@ -234,7 +235,6 @@ export async function updateDiagram(
     format: 'png',
   }
   const raster = renderedRaster ?? (await rasterizeSvg(svg))
-  const png = embedPayloadInPng(raster.base64, payload)
 
   await Word.run(async (context) => {
     const selection = context.document.getSelection()
@@ -280,6 +280,10 @@ export async function updateDiagram(
           width: existingPicture.width,
           height: existingPicture.width * (raster.height / raster.width),
         }
+    const png = setPngPhysicalWidth(
+      embedPayloadInPng(raster.base64, payload),
+      dimensions.width,
+    )
     const insertionPoint = contentControl.getRange(Word.RangeLocation.before)
     insertionPoint.track()
     contentControl.delete(false)

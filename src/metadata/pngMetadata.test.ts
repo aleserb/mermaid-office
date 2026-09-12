@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { base64ToBytes, bytesToBase64 } from './base64'
 import { createDiagramPayload } from './payload'
-import { embedPayloadInPng, readPayloadFromPng } from './pngMetadata'
+import {
+  embedPayloadInPng,
+  readPayloadFromPng,
+  setPngPhysicalWidth,
+} from './pngMetadata'
 
 const transparentPixel =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwX9WQAAAABJRU5ErkJggg=='
@@ -24,5 +28,16 @@ describe('PNG diagram metadata', () => {
 
     expect(() => readPayloadFromPng(bytesToBase64(bytes))).toThrow('integrity check')
     vi.unstubAllGlobals()
+  })
+
+  it('sets PNG density from the intended Word width', () => {
+    const bytes = base64ToBytes(setPngPhysicalWidth(transparentPixel, 0.375))
+    const type = new TextDecoder().decode(bytes.subarray(37, 41))
+    const density = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+
+    expect(type).toBe('pHYs')
+    expect(density.getUint32(41)).toBe(7559)
+    expect(density.getUint32(45)).toBe(7559)
+    expect(bytes[49]).toBe(1)
   })
 })

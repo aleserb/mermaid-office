@@ -23,6 +23,48 @@ export function embedPayloadInPng(base64Png: string, payload: DiagramPayload): s
   return bytesToBase64(result)
 }
 
+export function setPngPhysicalWidth(base64Png: string, widthPoints: number): string {
+  const png = base64ToBytes(base64Png)
+  assertPng(png)
+  if (!Number.isFinite(widthPoints) || widthPoints <= 0) {
+    throw new Error('PNG physical width must be a positive number.')
+  }
+
+  const ihdrOffset = findChunkOffset(png, 'IHDR')
+  if (ihdrOffset === -1) {
+    throw new Error('PNG does not contain an IHDR chunk.')
+  }
+
+  const pixelWidth = readUint32(png, ihdrOffset + 8)
+  const widthMeters = (widthPoints / 72) * 0.0254
+  const pixelsPerMeter = Math.max(1, Math.round(pixelWidth / widthMeters))
+  const densityData = new Uint8Array(9)
+  writeUint32(densityData, 0, pixelsPerMeter)
+  writeUint32(densityData, 4, pixelsPerMeter)
+  densityData[8] = 1
+  const densityChunk = createChunk('pHYs', densityData)
+
+  const existingOffset = findChunkOffset(png, 'pHYs')
+  if (existingOffset !== -1) {
+    const existingLength = readUint32(png, existingOffset) + 12
+    const result = new Uint8Array(png.length - existingLength + densityChunk.length)
+    result.set(png.subarray(0, existingOffset), 0)
+    result.set(densityChunk, existingOffset)
+    result.set(
+      png.subarray(existingOffset + existingLength),
+      existingOffset + densityChunk.length,
+    )
+    return bytesToBase64(result)
+  }
+
+  const insertionOffset = ihdrOffset + readUint32(png, ihdrOffset) + 12
+  const result = new Uint8Array(png.length + densityChunk.length)
+  result.set(png.subarray(0, insertionOffset), 0)
+  result.set(densityChunk, insertionOffset)
+  result.set(png.subarray(insertionOffset), insertionOffset + densityChunk.length)
+  return bytesToBase64(result)
+}
+
 export function readPayloadFromPng(base64Png: string): DiagramPayload | null {
   const png = base64ToBytes(base64Png)
   assertPng(png)
@@ -61,7 +103,6 @@ export function readPayloadFromPng(base64Png: string): DiagramPayload | null {
 }
 
 function createInternationalTextChunk(text: string): Uint8Array {
-  const type = textEncoder.encode('iTXt')
   const keyword = textEncoder.encode(KEYWORD)
   const value = textEncoder.encode(text)
   const data = new Uint8Array(keyword.length + value.length + 5)
@@ -73,6 +114,11 @@ function createInternationalTextChunk(text: string): Uint8Array {
   data[keyword.length + 4] = 0
   data.set(value, keyword.length + 5)
 
+  return createChunk('iTXt', data)
+}
+
+function createChunk(typeName: string, data: Uint8Array): Uint8Array {
+  const type = textEncoder.encode(typeName)
   const chunk = new Uint8Array(data.length + 12)
   writeUint32(chunk, 0, data.length)
   chunk.set(type, 4)
