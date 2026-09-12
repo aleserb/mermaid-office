@@ -44,27 +44,29 @@ describe('isSvgInsertionSupported', () => {
     expect(isSetSupported).toHaveBeenCalledWith('ImageCoercion', '1.2')
   })
 
-  it('commits a PNG before wrapping it in a content control', async () => {
+  it('commits a content control before inserting a PNG into it', async () => {
     const sync = vi.fn().mockResolvedValue(undefined)
-    const insertContentControl = vi.fn().mockReturnValue({
+    const insertInlinePictureFromBase64 = vi.fn()
+    const contentControl = {
       tag: '',
       title: '',
       appearance: '',
       cannotDelete: true,
       cannotEdit: true,
-    })
+      insertInlinePictureFromBase64,
+    }
     const picture = {
       altTextTitle: '',
       altTextDescription: '',
       width: 0,
       height: 0,
-      insertContentControl,
     }
-    const insertInlinePictureFromBase64 = vi.fn().mockReturnValue(picture)
+    insertInlinePictureFromBase64.mockReturnValue(picture)
+    const insertContentControl = vi.fn().mockReturnValue(contentControl)
     const settingsAdd = vi.fn()
     const context = {
       document: {
-        getSelection: () => ({ insertInlinePictureFromBase64 }),
+        getSelection: () => ({ insertContentControl }),
         settings: { add: settingsAdd },
       },
       sync,
@@ -91,8 +93,10 @@ describe('isSvgInsertionSupported', () => {
     expect(insertInlinePictureFromBase64).toHaveBeenCalledWith('png-data', 'Replace')
     expect(sync).toHaveBeenCalledTimes(2)
     expect(sync.mock.invocationCallOrder[0]).toBeLessThan(
-      insertContentControl.mock.invocationCallOrder[0],
+      insertInlinePictureFromBase64.mock.invocationCallOrder[0],
     )
+    expect(contentControl.tag).toBe(`mermaid-office:v1:${payload.id}`)
+    expect(contentControl.appearance).toBe('Hidden')
     expect(picture.width).toBe(324)
     expect(picture.height).toBeCloseTo(79.61, 2)
     expect(settingsAdd).toHaveBeenCalledWith(

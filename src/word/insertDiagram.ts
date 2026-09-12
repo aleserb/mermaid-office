@@ -88,20 +88,20 @@ export async function svgToPngBase64(svg: string): Promise<string> {
   return (await rasterizeSvg(svg)).base64
 }
 
-function configureDiagramContentControl(
-  picture: Word.InlinePicture,
-  payload: DiagramPayload,
-): Word.ContentControl {
+function configureDiagramPicture(picture: Word.InlinePicture) {
   picture.altTextTitle = 'Mermaid diagram'
   picture.altTextDescription = 'Diagram created with Mermaid Office.'
+}
 
-  const contentControl = picture.insertContentControl()
+function configureDiagramContentControl(
+  contentControl: Word.ContentControl,
+  payload: DiagramPayload,
+) {
   contentControl.tag = getContentControlTag(payload.id)
   contentControl.title = 'Mermaid diagram'
   contentControl.appearance = Word.ContentControlAppearance.hidden
   contentControl.cannotDelete = false
   contentControl.cannotEdit = false
-  return contentControl
 }
 
 export async function insertPngObject(
@@ -110,7 +110,11 @@ export async function insertPngObject(
 ): Promise<void> {
   await Word.run(async (context) => {
     const selection = context.document.getSelection()
-    const picture = selection.insertInlinePictureFromBase64(
+    const contentControl = selection.insertContentControl()
+    configureDiagramContentControl(contentControl, payload)
+    await context.sync()
+
+    const picture = contentControl.insertInlinePictureFromBase64(
       raster.base64,
       Word.InsertLocation.replace,
     )
@@ -123,12 +127,7 @@ export async function insertPngObject(
     )
     picture.width = dimensions.width
     picture.height = dimensions.height
-
-    // Commit the picture before wrapping it. Word on the web can otherwise
-    // create an empty content control beside the newly inserted image.
-    await context.sync()
-
-    configureDiagramContentControl(picture, payload)
+    configureDiagramPicture(picture)
     context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
     await context.sync()
   })
@@ -258,7 +257,9 @@ async function wrapSelectedSvgObject(payload: DiagramPayload): Promise<void> {
     )
     picture.width = dimensions.width
     picture.height = dimensions.height
-    const contentControl = configureDiagramContentControl(picture, payload)
+    configureDiagramPicture(picture)
+    const contentControl = picture.insertContentControl()
+    configureDiagramContentControl(contentControl, payload)
     const setting = context.document.settings.add(
       getDocumentSettingKey(payload.id),
       JSON.stringify(payload),
