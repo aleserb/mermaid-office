@@ -60,10 +60,9 @@ declarations and existing messages, with declared aliases shown as descriptions.
 Suggestions are available for message senders and recipients, note references,
 and activation commands; use Ctrl+Space to request suggestions explicitly.
 
-The editor UI follows Word's light or dark theme, using the system preference
-when Office theme information is unavailable. The expanded dialog reads Word's
-theme when opened. This changes the controls and code editor, not the selected
-Mermaid theme or exported PNG; the preview retains a light document canvas.
+The editor UI and preview canvas always use a light appearance, regardless of
+Word's or the system's theme. The selected Mermaid theme independently controls
+the diagram's colors and exported PNG.
 
 The editor offers Mermaid's Default, Neutral, Dark, Forest, Neo, Redux Color,
 and monochrome Redux render themes, including their dark variants. The selected

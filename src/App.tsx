@@ -3,7 +3,6 @@ import {
   FluentProvider,
   MessageBar,
   MessageBarBody,
-  webDarkTheme,
   webLightTheme,
 } from '@fluentui/react-components'
 import { AddSquareRegular } from '@fluentui/react-icons'
@@ -26,10 +25,8 @@ import {
 } from './preferences/diagramPreferences'
 import { insertDiagram, type DiagramFormat, updateDiagram } from './word/insertDiagram'
 import { watchSelectedDiagram } from './word/selection'
-import { useOfficeDarkTheme } from './preferences/officeTheme'
 
 function App() {
-  const darkMode = useOfficeDarkTheme()
   const [source, setSource] = useState(DEFAULT_DIAGRAM)
   const [theme, setTheme] = useState<DiagramTheme>(getPreferredTheme)
   const [size, setSize] = useState<DiagramSize>('medium')
@@ -193,8 +190,8 @@ function App() {
 
   return (
     <FluentProvider
-      theme={darkMode ? webDarkTheme : webLightTheme}
-      style={{ colorScheme: darkMode ? 'dark' : 'light' }}
+      theme={webLightTheme}
+      style={{ colorScheme: 'light' }}
     >
       <main className="app-shell">
         <header className="app-header">
@@ -267,7 +264,6 @@ function App() {
           left={
             <div className="panel">
               <MermaidEditor
-                darkMode={darkMode}
                 value={source}
                 onChange={setSource}
                 diagnostic={renderError}

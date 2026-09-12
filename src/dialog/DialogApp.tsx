@@ -5,7 +5,6 @@ import {
   MessageBarBody,
   Spinner,
   Text,
-  webDarkTheme,
   webLightTheme,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
@@ -18,7 +17,6 @@ import { normalizeMermaidError, type MermaidDiagnostic } from '../mermaid/diagno
 import { renderMermaid } from '../mermaid/render'
 import type { DiagramSize, DiagramTheme } from '../metadata/payload'
 import { setPreferredTheme } from '../preferences/diagramPreferences'
-import { systemUsesDarkTheme } from '../preferences/officeTheme'
 import { rasterizeSvg } from '../word/insertDiagram'
 import { parseParentMessage, type DialogToParentMessage } from './messages'
 import './dialog.css'
@@ -28,7 +26,6 @@ function sendToParent(message: DialogToParentMessage) {
 }
 
 export function DialogApp() {
-  const [darkMode, setDarkMode] = useState(systemUsesDarkTheme)
   const [source, setSource] = useState('')
   const [theme, setTheme] = useState<DiagramTheme>('default')
   const [size, setSize] = useState<DiagramSize>('medium')
@@ -45,7 +42,6 @@ export function DialogApp() {
       (args: Office.DialogParentMessageReceivedEventArgs) => {
         try {
           const message = parseParentMessage(args.message)
-          setDarkMode(message.darkMode ?? systemUsesDarkTheme())
           setSource(message.source)
           setTheme(message.theme)
           setSize(message.size)
@@ -113,8 +109,8 @@ export function DialogApp() {
 
   return (
     <FluentProvider
-      theme={darkMode ? webDarkTheme : webLightTheme}
-      style={{ colorScheme: darkMode ? 'dark' : 'light' }}
+      theme={webLightTheme}
+      style={{ colorScheme: 'light' }}
     >
       <main className="dialog-shell">
         <header className="dialog-header">
@@ -159,7 +155,6 @@ export function DialogApp() {
               <div className="dialog-panel">
                 <div className="dialog-editor-body">
                   <MermaidEditor
-                    darkMode={darkMode}
                     value={source}
                     onChange={setSource}
                     diagnostic={error}

@@ -4,7 +4,7 @@ import { parseParentMessage } from './messages'
 
 afterEach(() => vi.unstubAllGlobals())
 
-it.each([true, false])('forwards Word dark mode %s without changing the Mermaid theme', async (darkMode) => {
+it.each([true, false])('ignores Word dark mode %s without changing the Mermaid theme', async (darkMode) => {
   const handlers = new Map<string, (args: { message: string }) => void>()
   const dialog = {
     close: vi.fn(),
@@ -39,7 +39,6 @@ it.each([true, false])('forwards Word dark mode %s without changing the Mermaid 
     theme: 'forest',
     size: 'medium',
     mode: 'update',
-    darkMode,
   })
   receive({ message: JSON.stringify({ type: 'cancel' }) })
   expect(await result).toBeNull()

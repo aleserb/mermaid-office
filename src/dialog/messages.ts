@@ -11,7 +11,6 @@ export type ParentToDialogMessage = {
   source: string
   theme: DiagramTheme
   size: DiagramSize
-  darkMode?: boolean
 }
 
 export type DialogToParentMessage =
@@ -37,9 +36,7 @@ export function parseParentMessage(value: string): ParentToDialogMessage {
     !DIAGRAM_THEMES.includes(
       (message as Record<string, unknown>).theme as DiagramTheme,
     ) ||
-    !DIAGRAM_SIZES.includes((message as Record<string, unknown>).size as DiagramSize) ||
-    ((message as Record<string, unknown>).darkMode !== undefined &&
-      typeof (message as Record<string, unknown>).darkMode !== 'boolean')
+    !DIAGRAM_SIZES.includes((message as Record<string, unknown>).size as DiagramSize)
   ) {
     throw new Error('The editor received an invalid initialization message.')
   }

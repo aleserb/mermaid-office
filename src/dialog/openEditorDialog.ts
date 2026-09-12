@@ -1,7 +1,6 @@
 import { parseDialogMessage, type ParentToDialogMessage } from './messages'
 import type { DiagramSize, DiagramTheme } from '../metadata/payload'
 import type { RasterizedDiagram } from '../word/insertDiagram'
-import { officeUsesDarkTheme } from '../preferences/officeTheme'
 
 export interface EditorResult {
   source: string
@@ -68,7 +67,6 @@ export function openEditorDialog(
                   theme,
                   size,
                   mode,
-                  darkMode: officeUsesDarkTheme(),
                 }
                 dialog.messageChild(JSON.stringify(initialization))
               } else if (message.type === 'save') {
