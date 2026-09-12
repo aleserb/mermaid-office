@@ -3,7 +3,6 @@ import {
   FluentProvider,
   MessageBar,
   MessageBarBody,
-  Text,
   webLightTheme,
 } from '@fluentui/react-components'
 import { AddSquareRegular } from '@fluentui/react-icons'
@@ -252,7 +251,6 @@ function App() {
           left={
             <div className="panel">
               <div className="panel-heading">
-                <Text weight="semibold">Diagram source</Text>
                 <div className="diagram-options">
                   <SyntaxHelpLink />
                   <ThemePicker
@@ -274,9 +272,7 @@ function App() {
           }
           right={
             <div className="panel">
-              <div className="panel-heading">
-                <Text weight="semibold">Preview</Text>
-              </div>
+              <div className="panel-heading panel-heading-spacer" aria-hidden="true" />
               <DiagramPreview
                 key={svg}
                 svg={svg}

@@ -5,7 +5,6 @@ import {
   MessageBarBody,
   Spinner,
   Text,
-  Title2,
   webLightTheme,
 } from '@fluentui/react-components'
 import { useEffect, useState } from 'react'
@@ -113,7 +112,6 @@ export function DialogApp() {
       <main className="dialog-shell">
         <header className="dialog-header">
           <div className="dialog-title">
-            <Title2 as="h1">Mermaid Diagram</Title2>
             <Text className="build-version" size={200}>
               Build {__BUILD_VERSION__}
             </Text>
@@ -145,7 +143,6 @@ export function DialogApp() {
             left={
               <div className="dialog-panel">
                 <div className="panel-heading">
-                  <Text weight="semibold">Diagram source</Text>
                   <div className="diagram-options">
                     <SyntaxHelpLink />
                     <ThemePicker
@@ -173,9 +170,7 @@ export function DialogApp() {
             }
             right={
               <div className="dialog-panel">
-                <div className="panel-heading">
-                  <Text weight="semibold">Preview</Text>
-                </div>
+                <div className="panel-heading panel-heading-spacer" aria-hidden="true" />
                 <DiagramPreview key={svg} svg={svg} loading={rendering} />
               </div>
             }
