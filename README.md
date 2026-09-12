@@ -20,10 +20,14 @@ compatibility strategy, and delivery plan.
 The add-in creates a tightly cropped PNG locally before inserting it into Word.
 Using one image format across desktop and web avoids host-specific SVG sizing
 differences and keeps insertion and update behavior consistent.
-The final PNG is rasterized directly from SVG, targeting 3x the diagram's native
-dimensions or 8x its intended display width, whichever provides more detail.
-The display target covers 400% zoom on a 2x-density screen when within the export limits.
-Exports are bounded to 8192 pixels per side and about 33.6 megapixels to limit memory use;
+The final PNG is rasterized directly from SVG with automatic resolution: it targets
+2 pixels per displayed CSS pixel for normal viewing on a high-density screen,
+retaining native SVG detail for dense diagrams when the budget permits.
+New diagrams use the fitted Word size; edits use the picture's actual width,
+including manual resizing, rather than always targeting extreme zoom.
+Resolution is recalculated on insertion or a valid edit, not on Word zoom changes
+or resizing alone. There is no quality selector to configure.
+Exports are bounded to 4096 pixels per side and about 4.2 megapixels to limit memory use;
 canvas backing stores are released immediately after encoding.
 Cropping, displayed Word size, and embedded source metadata are preserved.
 Pictures are inserted and updated as an inline Word drawing with explicit frame
@@ -33,8 +37,9 @@ importing these drawings, including during live updates. This is a Word-owned
 dialog, not an add-in editor dialog; Office.js provides no supported switch to
 hide it. Direct bitmap replacement is not used because Word can lose the intended
 picture size or paint the new bitmap outside its frame.
-PNG remains a raster format, so extreme zoom can still reveal pixels. Existing
-images gain the higher resolution when a valid edit regenerates them.
+Smaller PNGs reduce raster and import work, but cannot guarantee that Word will
+omit its progress dialog. PNG remains a raster format, so extreme zoom can still
+reveal pixels. Existing images adopt the automatic resolution on their next valid edit.
 
 ## Development
 

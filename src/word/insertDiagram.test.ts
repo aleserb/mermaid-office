@@ -15,6 +15,8 @@ import { embedPayloadInPng, readPayloadFromPng, setPngPhysicalWidth } from '../m
 const transparentPixel =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwX9WQAAAABJRU5ErkJggg=='
 
+afterEach(() => vi.restoreAllMocks())
+
 function readPictureOoxml(xml: string) {
   const document = new DOMParser().parseFromString(xml, 'application/xml')
   expect(document.querySelector('parsererror')).toBeNull()
@@ -462,6 +464,69 @@ describe('Word diagram insertion', () => {
 describe('Word diagram updates by saved ID', () => {
   afterEach(() => vi.unstubAllGlobals())
   const raster = { base64: transparentPixel, width: 100, height: 60 }
+
+  it.each([
+    { update: updateDiagramById, applySize: false },
+    { update: updateDiagramById, applySize: true },
+    { update: updateDiagram, applySize: false },
+    { update: updateDiagram, applySize: true },
+  ])('$update rasterizes for the actual frame (applySize=$applySize)', async ({ update, applySize }) => {
+    const mock = mockSavedDiagram()
+    if (update === updateDiagram) {
+      const control = {
+        ...mock.control, isNullObject: false,
+        tag: getContentControlTag(mock.existing.id), load: vi.fn(),
+      }
+      vi.stubGlobal('Word', {
+        run: vi.fn(async (callback) => callback({
+          ...mock.context,
+          document: {
+            ...mock.context.document,
+            getSelection: () => ({
+              parentContentControlOrNullObject: control,
+              inlinePictures: { getFirstOrNullObject: () => mock.picture },
+            }),
+          },
+        })),
+        InsertLocation: { replace: 'Replace' },
+      })
+    }
+    const probe = Object.assign(document.createElement('canvas'), {
+      getContext: vi.fn().mockReturnValue({
+        scale: vi.fn(), drawImage: vi.fn(),
+        getImageData: () => ({ data: new Uint8ClampedArray(200 * 100 * 4).fill(255) }),
+      }),
+    })
+    const drawImage = vi.fn()
+    const output = Object.assign(document.createElement('canvas'), {
+      getContext: vi.fn().mockReturnValue({ drawImage }),
+      toDataURL: vi.fn().mockReturnValue(`data:image/png;base64,${transparentPixel}`),
+    })
+    vi.spyOn(document, 'createElement').mockReturnValueOnce(probe).mockReturnValueOnce(output)
+    class VectorImage {
+      src = ''
+      decode = vi.fn().mockResolvedValue(undefined)
+    }
+    vi.stubGlobal('Image', VectorImage)
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:diagram', revokeObjectURL: vi.fn() })
+
+    await update(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>',
+      mock.existing, 'flowchart LR\nNew', undefined, 'small', applySize,
+    )
+
+    const width = applySize ? 216 : mock.picture.width
+    const pixelWidth = width * (96 / 72) * 2
+    expect(drawImage).toHaveBeenCalledExactlyOnceWith(
+      expect.any(VectorImage), 0, 0, 100, 50, 0, 0,
+      Math.floor(pixelWidth), Math.floor(pixelWidth / 2),
+    )
+    const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
+    expect(replacement).toMatchObject({ width, height: width / 2 })
+    expect(readPayloadFromPng(replacement.base64)).toMatchObject({
+      id: mock.existing.id, source: 'flowchart LR\nNew', size: 'small',
+    })
+  })
 
   it.each([false, true])('targets the saved ID without touching selection (applySize=%s)', async (applySize) => {
     const mock = mockSavedDiagram()

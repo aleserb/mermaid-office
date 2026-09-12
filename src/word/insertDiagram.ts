@@ -39,20 +39,26 @@ const DIAGRAM_WIDTHS: Record<DiagramSize, number> = {
   'page-width': 468,
 }
 
-const MAX_RASTER_DIMENSION = 8192
-const MAX_RASTER_PIXELS = 32 * 1024 * 1024
+const MAX_RASTER_DIMENSION = 4096
+const MAX_RASTER_PIXELS = 4 * 1024 * 1024
 
 export function getRasterDimensions(
   width: number,
   height: number,
-  size?: DiagramSize,
+  sizeOrWidth?: DiagramSize | number,
 ): { width: number; height: number } {
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     throw new Error('Diagram dimensions must be positive finite numbers.')
   }
-  // Eight pixels per displayed CSS pixel cover 400% zoom on a 2x-density screen.
-  // Dense diagrams also target 3x native detail, within the same resource limits.
-  const preferredScale = Math.max(3, size ? DIAGRAM_WIDTHS[size] * (96 / 72) * 8 / width : 3)
+  if (typeof sizeOrWidth === 'number' && (!Number.isFinite(sizeOrWidth) || sizeOrWidth <= 0)) {
+    throw new Error('Diagram display width must be a positive finite number.')
+  }
+  const displayWidth = typeof sizeOrWidth === 'number'
+    ? sizeOrWidth
+    : sizeOrWidth ? fitDiagram(width, height, DIAGRAM_WIDTHS[sizeOrWidth], 650, true).width : 0
+  // Target normal viewing on a 2x-density screen, retaining native SVG detail
+  // for dense diagrams when the budget permits. Word widths are in points.
+  const preferredScale = Math.max(1, displayWidth * (96 / 72) * 2 / width)
   const scale = Math.min(
     preferredScale,
     MAX_RASTER_DIMENSION / width,
@@ -120,7 +126,7 @@ export function normalizeSvgDimensions(svg: string): {
 
 export async function rasterizeSvg(
   svg: string,
-  size?: DiagramSize,
+  sizeOrWidth?: DiagramSize | number,
 ): Promise<RasterizedDiagram> {
   const normalized = normalizeSvgDimensions(svg)
   const scale = Math.min(2, 4096 / Math.max(normalized.width, normalized.height))
@@ -162,7 +168,7 @@ export async function rasterizeSvg(
     const croppedHeight = bottom - top
     const logicalWidth = croppedWidth / scale
     const logicalHeight = croppedHeight / scale
-    const dimensions = getRasterDimensions(logicalWidth, logicalHeight, size)
+    const dimensions = getRasterDimensions(logicalWidth, logicalHeight, sizeOrWidth)
     canvas.width = 1
     canvas.height = 1
     const output = window.document.createElement('canvas')
@@ -313,8 +319,6 @@ export async function updateDiagram(
     size,
     format: 'png',
   }
-  const raster = renderedRaster ?? (await rasterizeSvg(svg, size))
-
   await Word.run(async (context) => {
     const selection = context.document.getSelection()
     const directParent = selection.parentContentControlOrNullObject
@@ -347,6 +351,7 @@ export async function updateDiagram(
       throw new Error('The selected Mermaid diagram no longer contains a picture.')
     }
 
+    const raster = renderedRaster ?? (await rasterizeSvg(svg, applySize ? size : existingPicture.width))
     suppressDiagramPlaceholder(contentControl)
     const replacement = replaceDiagramPicture(context, existingPicture, raster, payload, applySize, {
       altTextTitle: existingPicture.altTextTitle || 'Mermaid diagram',
@@ -405,8 +410,6 @@ export async function updateDiagramById(
   }
 
   const payload: DiagramPayload = { ...existing, source, theme, size, format: 'png' }
-  const raster = renderedRaster ?? (await rasterizeSvg(svg, size))
-
   await Word.run(async (context) => {
     const controls = context.document.contentControls.getByTag(getContentControlTag(existing.id))
     controls.load('items')
@@ -442,6 +445,7 @@ export async function updateDiagramById(
     const picture = pictures.items[0]
     picture.load('altTextTitle,altTextDescription,width')
     await context.sync()
+    const raster = renderedRaster ?? (await rasterizeSvg(svg, applySize ? size : picture.width))
     suppressDiagramPlaceholder(controls.items[0])
     replaceDiagramPicture(context, picture, raster, payload, applySize)
     await context.sync()
