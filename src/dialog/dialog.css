@@ -18,7 +18,7 @@
 }
 
 .build-version {
-  color: #616161;
+  color: var(--colorNeutralForeground3, #616161);
   white-space: nowrap;
 }
 

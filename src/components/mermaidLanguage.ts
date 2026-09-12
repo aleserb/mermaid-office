@@ -151,7 +151,7 @@ const mermaidHighlightStyle = HighlightStyle.define([
   { tag: tags.comment, color: '#008000', fontStyle: 'italic' },
   { tag: tags.number, color: '#098658' },
   { tag: [tags.bracket, tags.punctuation], color: '#5c2d91' },
-])
+], { themeType: 'light' })
 
 export const mermaidLanguage = [
   StreamLanguage.define(parser),

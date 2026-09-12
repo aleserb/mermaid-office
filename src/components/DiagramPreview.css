@@ -1,6 +1,6 @@
 .diagram-preview {
   background: #fafafa;
-  border: 1px solid #d1d1d1;
+  border: 1px solid var(--colorNeutralStroke1, #d1d1d1);
   border-radius: 6px;
   box-sizing: border-box;
   display: flex;
@@ -14,8 +14,8 @@
 .preview-toolbar {
   align-items: center;
   align-self: flex-end;
-  background: rgb(255 255 255 / 92%);
-  border: 1px solid #d1d1d1;
+  background: var(--colorNeutralBackground1, #fff);
+  border: 1px solid var(--colorNeutralStroke1, #d1d1d1);
   border-radius: 6px;
   display: flex;
   gap: 2px;
@@ -31,6 +31,9 @@
 }
 
 .preview-viewport {
+  /* Keep the diagram canvas independent of the editor's Office UI theme. */
+  --colorNeutralForeground1: #242424;
+  color: #242424;
   align-items: center;
   display: flex;
   flex: 1;

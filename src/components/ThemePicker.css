@@ -13,17 +13,17 @@
 }
 
 .theme-picker select {
-  background: #fff;
-  border: 1px solid #b3b3b3;
+  background: var(--colorNeutralBackground1, #fff);
+  border: 1px solid var(--colorNeutralStroke1, #b3b3b3);
   border-radius: 4px;
-  color: #242424;
+  color: var(--colorNeutralForeground1, #242424);
   font: inherit;
   min-width: 104px;
   padding: 4px 26px 4px 8px;
 }
 
 .theme-picker select:focus {
-  border-color: #0f6cbd;
-  outline: 2px solid #0f6cbd;
+  border-color: var(--colorStrokeFocus2, #0f6cbd);
+  outline: 2px solid var(--colorStrokeFocus2, #0f6cbd);
   outline-offset: -1px;
 }

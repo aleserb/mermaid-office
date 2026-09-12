@@ -10,7 +10,8 @@ import {
   historyKeymap,
   indentWithTab,
 } from '@codemirror/commands'
-import { EditorState } from '@codemirror/state'
+import { Compartment, EditorState } from '@codemirror/state'
+import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, keymap, lineNumbers } from '@codemirror/view'
 import { lintGutter, setDiagnostics } from '@codemirror/lint'
 import { search, searchKeymap } from '@codemirror/search'
@@ -26,15 +27,22 @@ interface MermaidEditorProps {
   onChange: (value: string) => void
   diagnostic?: MermaidDiagnostic | null
   historyKey?: string
+  darkMode?: boolean
 }
 
-function createEditorState(document: string, onChange: (value: string) => void) {
+function createEditorState(
+  document: string,
+  onChange: (value: string) => void,
+  theme: Compartment,
+  darkMode: boolean,
+) {
   return EditorState.create({
     doc: document,
     extensions: [
       lineNumbers(),
       lintGutter(),
       mermaidLanguage,
+      theme.of(darkMode ? oneDark : []),
       history(),
       search({ top: true }),
       closeBrackets(),
@@ -66,16 +74,20 @@ export function MermaidEditor({
   onChange,
   diagnostic = null,
   historyKey = 'default',
+  darkMode = false,
 }: MermaidEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<EditorView>(null)
   const initialValue = useRef(value)
   const currentHistoryKey = useRef(historyKey)
   const onChangeRef = useRef(onChange)
+  const themeCompartment = useRef(new Compartment())
+  const darkModeRef = useRef(darkMode)
 
   useEffect(() => {
     onChangeRef.current = onChange
-  }, [onChange])
+    darkModeRef.current = darkMode
+  }, [onChange, darkMode])
 
   useEffect(() => {
     if (!hostRef.current) {
@@ -84,9 +96,12 @@ export function MermaidEditor({
 
     const editor = new EditorView({
       parent: hostRef.current,
-      state: createEditorState(initialValue.current, (nextValue) => {
-        onChangeRef.current(nextValue)
-      }),
+      state: createEditorState(
+        initialValue.current,
+        (nextValue) => onChangeRef.current(nextValue),
+        themeCompartment.current,
+        darkModeRef.current,
+      ),
     })
 
     editorRef.current = editor
@@ -109,11 +124,20 @@ export function MermaidEditor({
     // Loading another Word object starts a separate editing history.
     currentHistoryKey.current = historyKey
     editor.setState(
-      createEditorState(value, (nextValue) => {
-        onChangeRef.current(nextValue)
-      }),
+      createEditorState(
+        value,
+        (nextValue) => onChangeRef.current(nextValue),
+        themeCompartment.current,
+        darkModeRef.current,
+      ),
     )
   }, [historyKey, value])
+
+  useEffect(() => {
+    editorRef.current?.dispatch({
+      effects: themeCompartment.current.reconfigure(darkMode ? oneDark : []),
+    })
+  }, [darkMode])
 
   useEffect(() => {
     const editor = editorRef.current

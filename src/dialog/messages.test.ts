@@ -32,4 +32,20 @@ describe('editor dialog messages', () => {
     expect(() => parseParentMessage('{"type":"initialize"}')).toThrow('invalid')
     expect(() => parseDialogMessage('{"type":"unknown"}')).toThrow('unsupported')
   })
+
+  it('accepts an independent UI theme and rejects invalid theme flags', () => {
+    const initialization = {
+      type: 'initialize',
+      mode: 'insert',
+      source: 'sequenceDiagram',
+      theme: 'forest',
+      size: 'medium',
+    }
+    expect(parseParentMessage(JSON.stringify({ ...initialization, darkMode: true })))
+      .toMatchObject({ theme: 'forest', darkMode: true })
+    expect(parseParentMessage(JSON.stringify({ ...initialization, darkMode: false })))
+      .toMatchObject({ darkMode: false })
+    expect(() => parseParentMessage(JSON.stringify({ ...initialization, darkMode: 'dark' })))
+      .toThrow('invalid')
+  })
 })

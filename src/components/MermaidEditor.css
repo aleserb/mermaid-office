@@ -1,5 +1,5 @@
 .editor-shell {
-  border: 1px solid #d1d1d1;
+  border: 1px solid var(--colorNeutralStroke1, #d1d1d1);
   border-radius: 6px;
   display: flex;
   flex: 1;
@@ -9,7 +9,7 @@
 }
 
 .syntax-help {
-  color: #0f6cbd;
+  color: var(--colorBrandForegroundLink, #0f6cbd);
   font-size: 12px;
   text-decoration: none;
 }
