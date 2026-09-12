@@ -52,7 +52,7 @@ describe('Word diagram insertion', () => {
     expect(result.svg).not.toContain('max-width')
   })
 
-  it('commits a content control before inserting a PNG into it', async () => {
+  it('replaces the first PNG after Word establishes its content control', async () => {
     const sync = vi.fn().mockResolvedValue(undefined)
     const insertInlinePictureFromBase64 = vi.fn()
     const contentControl = {
@@ -98,10 +98,23 @@ describe('Word diagram insertion', () => {
       payload,
     )
 
-    expect(insertInlinePictureFromBase64).toHaveBeenCalledWith('png-data', 'Replace')
-    expect(sync).toHaveBeenCalledTimes(2)
+    expect(insertInlinePictureFromBase64).toHaveBeenCalledTimes(2)
+    expect(insertInlinePictureFromBase64).toHaveBeenNthCalledWith(
+      1,
+      'png-data',
+      'Replace',
+    )
+    expect(insertInlinePictureFromBase64).toHaveBeenNthCalledWith(
+      2,
+      'png-data',
+      'Replace',
+    )
+    expect(sync).toHaveBeenCalledTimes(3)
     expect(sync.mock.invocationCallOrder[0]).toBeLessThan(
       insertInlinePictureFromBase64.mock.invocationCallOrder[0],
+    )
+    expect(sync.mock.invocationCallOrder[1]).toBeLessThan(
+      insertInlinePictureFromBase64.mock.invocationCallOrder[1],
     )
     expect(contentControl.tag).toBe(`mermaid-office:v1:${payload.id}`)
     expect(contentControl.appearance).toBe('Hidden')

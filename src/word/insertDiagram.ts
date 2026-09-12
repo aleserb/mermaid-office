@@ -196,6 +196,18 @@ export async function insertPngObject(
     picture.width = dimensions.width
     picture.height = dimensions.height
     configureDiagramPicture(picture)
+    await context.sync()
+
+    // Word can retain the placeholder frame dimensions for the first image placed in a
+    // new content control. Replacing it after the control contains a picture forces the
+    // same layout pass used when updating an existing diagram.
+    const replacement = contentControl.insertInlinePictureFromBase64(
+      raster.base64,
+      Word.InsertLocation.replace,
+    )
+    replacement.width = dimensions.width
+    replacement.height = dimensions.height
+    configureDiagramPicture(replacement)
     context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
     await context.sync()
   })
