@@ -111,10 +111,18 @@ export function DialogApp() {
     <FluentProvider theme={webLightTheme}>
       <main className="dialog-shell">
         <header className="dialog-header">
-          <div className="dialog-title">
+          <div className="diagram-options">
             <Text className="build-version" size={200}>
               Build {__BUILD_VERSION__}
             </Text>
+            <SyntaxHelpLink />
+            <ThemePicker
+              value={theme}
+              onChange={(value) => {
+                setTheme(value)
+                setPreferredTheme(value)
+              }}
+            />
           </div>
           <div className="dialog-actions">
             <Button onClick={() => sendToParent({ type: 'cancel' })}>Discard Changes</Button>
@@ -142,18 +150,6 @@ export function DialogApp() {
             ariaLabel="Mermaid diagram workspace"
             left={
               <div className="dialog-panel">
-                <div className="panel-heading">
-                  <div className="diagram-options">
-                    <SyntaxHelpLink />
-                    <ThemePicker
-                      value={theme}
-                      onChange={(value) => {
-                        setTheme(value)
-                        setPreferredTheme(value)
-                      }}
-                    />
-                  </div>
-                </div>
                 <div className="dialog-editor-body">
                   <MermaidEditor
                     value={source}
@@ -170,7 +166,6 @@ export function DialogApp() {
             }
             right={
               <div className="dialog-panel">
-                <div className="panel-heading panel-heading-spacer" aria-hidden="true" />
                 <DiagramPreview key={svg} svg={svg} loading={rendering} />
               </div>
             }

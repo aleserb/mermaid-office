@@ -192,6 +192,16 @@ function App() {
     <FluentProvider theme={webLightTheme}>
       <main className="app-shell">
         <header className="app-header">
+          <div className="diagram-options">
+            <SyntaxHelpLink />
+            <ThemePicker
+              value={theme}
+              onChange={(value) => {
+                setTheme(value)
+                setPreferredTheme(value)
+              }}
+            />
+          </div>
           <div className="header-actions">
             {selectedDiagram && (
               <Button
@@ -250,18 +260,6 @@ function App() {
           ariaLabel="Mermaid diagram workspace"
           left={
             <div className="panel">
-              <div className="panel-heading">
-                <div className="diagram-options">
-                  <SyntaxHelpLink />
-                  <ThemePicker
-                    value={theme}
-                    onChange={(value) => {
-                      setTheme(value)
-                      setPreferredTheme(value)
-                    }}
-                  />
-                </div>
-              </div>
               <MermaidEditor
                 value={source}
                 onChange={setSource}
@@ -272,7 +270,6 @@ function App() {
           }
           right={
             <div className="panel">
-              <div className="panel-heading panel-heading-spacer" aria-hidden="true" />
               <DiagramPreview
                 key={svg}
                 svg={svg}

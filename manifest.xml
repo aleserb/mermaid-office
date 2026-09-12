@@ -6,7 +6,7 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>9e2ab43d-705f-4f59-b861-a2b35eca6d41</Id>
-  <Version>1.0.11.0</Version>
+  <Version>1.0.12.0</Version>
   <ProviderName>aleserb</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Mermaid Office"/>
@@ -92,7 +92,7 @@
       <bt:Urls>
         <bt:Url
           id="MermaidOffice.Commands.Url"
-          DefaultValue="https://aleserb.github.io/mermaid-office/commands.html?v=1.0.11"/>
+          DefaultValue="https://aleserb.github.io/mermaid-office/commands.html?v=1.0.12"/>
         <bt:Url
           id="MermaidOffice.Taskpane.Url"
           DefaultValue="https://aleserb.github.io/mermaid-office/"/>
@@ -102,7 +102,7 @@
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="MermaidOffice.Group.Label" DefaultValue="Mermaid"/>
-        <bt:String id="MermaidOffice.Editor.Label" DefaultValue="Mermaid"/>
+        <bt:String id="MermaidOffice.Editor.Label" DefaultValue="Mermaid Editor"/>
         <bt:String
           id="MermaidOffice.GetStarted.Title"
           DefaultValue="Create Mermaid diagrams in Word"/>
@@ -113,7 +113,7 @@
           DefaultValue="Open the Mermaid editor to insert a new diagram or update the selected diagram."/>
         <bt:String
           id="MermaidOffice.GetStarted.Desc"
-          DefaultValue="Use Insert > Mermaid to create a diagram or edit the selected Mermaid diagram."/>
+          DefaultValue="Use Insert > Mermaid Editor to create a diagram or edit the selected Mermaid diagram."/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

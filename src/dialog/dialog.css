@@ -12,14 +12,9 @@
 .dialog-header {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   justify-content: space-between;
-}
-
-.dialog-title {
-  align-items: baseline;
-  display: flex;
-  gap: 8px;
 }
 
 .build-version {
@@ -29,6 +24,7 @@
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -51,12 +47,4 @@
   flex-direction: column;
   gap: 8px;
   min-height: 0;
-}
-
-@media (max-width: 720px) {
-  .dialog-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
 }
