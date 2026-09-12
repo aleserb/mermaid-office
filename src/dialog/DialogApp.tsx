@@ -18,6 +18,7 @@ import { normalizeMermaidError, type MermaidDiagnostic } from '../mermaid/diagno
 import { renderMermaid } from '../mermaid/render'
 import type { DiagramSize, DiagramTheme } from '../metadata/payload'
 import { setPreferredTheme } from '../preferences/diagramPreferences'
+import { rasterizeSvg } from '../word/insertDiagram'
 import { parseParentMessage, type DialogToParentMessage } from './messages'
 import './dialog.css'
 
@@ -29,10 +30,12 @@ export function DialogApp() {
   const [source, setSource] = useState('')
   const [theme, setTheme] = useState<DiagramTheme>('default')
   const [size, setSize] = useState<DiagramSize>('medium')
+  const [mode, setMode] = useState<'insert' | 'update'>('insert')
   const [svg, setSvg] = useState('')
   const [error, setError] = useState<MermaidDiagnostic | null>(null)
   const [initialized, setInitialized] = useState(false)
   const [rendering, setRendering] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     Office.context.ui.addHandlerAsync(
@@ -43,6 +46,7 @@ export function DialogApp() {
           setSource(message.source)
           setTheme(message.theme)
           setSize(message.size)
+          setMode(message.mode)
           setInitialized(true)
         } catch (messageError) {
           setError(normalizeMermaidError(messageError))
@@ -89,6 +93,21 @@ export function DialogApp() {
     }
   }, [initialized, source, theme])
 
+  const saveDiagram = async () => {
+    if (!svg || error) {
+      return
+    }
+
+    setSaving(true)
+    try {
+      const raster = await rasterizeSvg(svg)
+      sendToParent({ type: 'save', source, theme, size, svg, raster })
+    } catch (saveError) {
+      setError(normalizeMermaidError(saveError))
+      setSaving(false)
+    }
+  }
+
   return (
     <FluentProvider theme={webLightTheme}>
       <main className="dialog-shell">
@@ -98,10 +117,16 @@ export function DialogApp() {
             <Button onClick={() => sendToParent({ type: 'cancel' })}>Discard Changes</Button>
             <Button
               appearance="primary"
-              disabled={!initialized || rendering || Boolean(error)}
-              onClick={() => sendToParent({ type: 'save', source, theme, size })}
+              disabled={!initialized || rendering || saving || Boolean(error)}
+              onClick={saveDiagram}
             >
-              Save and Close
+              {saving
+                ? mode === 'update'
+                  ? 'Updating...'
+                  : 'Inserting...'
+                : mode === 'update'
+                  ? 'Update'
+                  : 'Insert'}
             </Button>
           </div>
         </header>

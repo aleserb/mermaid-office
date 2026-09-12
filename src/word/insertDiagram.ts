@@ -140,6 +140,7 @@ export async function updateDiagram(
   theme: DiagramTheme = existing.theme,
   size: DiagramSize = existing.size,
   applySize = false,
+  renderedRaster?: RasterizedDiagram,
 ): Promise<DiagramFormat> {
   if (typeof Word === 'undefined') {
     throw new Error('Open Mermaid Office inside Microsoft Word to update a diagram.')
@@ -152,7 +153,7 @@ export async function updateDiagram(
     size,
     format: 'png',
   }
-  const raster = await rasterizeSvg(svg)
+  const raster = renderedRaster ?? (await rasterizeSvg(svg))
   const png = embedPayloadInPng(raster.base64, payload)
 
   await Word.run(async (context) => {
@@ -288,6 +289,7 @@ export async function insertDiagram(
   source: string,
   theme: DiagramTheme = 'default',
   size: DiagramSize = 'medium',
+  renderedRaster?: RasterizedDiagram,
 ): Promise<DiagramFormat> {
   if (typeof Office === 'undefined' || !Office.context?.document) {
     throw new Error('Open Mermaid Office inside Microsoft Word to insert a diagram.')
@@ -301,7 +303,7 @@ export async function insertDiagram(
   }
 
   const payload = createDiagramPayload(source, 'png', theme, size)
-  const raster = await rasterizeSvg(svg)
+  const raster = renderedRaster ?? (await rasterizeSvg(svg))
   const png = embedPayloadInPng(raster.base64, payload)
   await insertPngObject({ ...raster, base64: png }, payload)
   return 'png'

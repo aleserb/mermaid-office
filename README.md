@@ -60,9 +60,10 @@ and monochrome Redux render themes, including their dark variants. The selected
 theme is stored with the diagram so it is restored when editing later. The most
 recently selected theme is also remembered for new diagrams.
 
-The ribbon's **Open editor** command opens this dialog directly without opening
-the task pane. Because this changes `manifest.xml`, remove and upload the
-manifest again after deployment.
+The ribbon's **Mermaid** command opens this dialog directly without opening the
+task pane. The dialog shows **Insert** for a new diagram and **Update** when an
+existing Mermaid diagram is selected. Because this changes `manifest.xml`,
+remove and upload the manifest again after deployment.
 
 ## Checks
 

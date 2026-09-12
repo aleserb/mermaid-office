@@ -1,16 +1,20 @@
 import { parseDialogMessage, type ParentToDialogMessage } from './messages'
 import type { DiagramSize, DiagramTheme } from '../metadata/payload'
+import type { RasterizedDiagram } from '../word/insertDiagram'
 
 export interface EditorResult {
   source: string
   theme: DiagramTheme
   size: DiagramSize
+  svg: string
+  raster: RasterizedDiagram
 }
 
 export function openEditorDialog(
   source: string,
   theme: DiagramTheme,
   size: DiagramSize,
+  mode: 'insert' | 'update',
 ): Promise<EditorResult | null> {
   if (typeof Office === 'undefined' || !Office.context?.ui) {
     return Promise.reject(new Error('The expanded editor is available inside Microsoft Word.'))
@@ -61,6 +65,7 @@ export function openEditorDialog(
                   source,
                   theme,
                   size,
+                  mode,
                 }
                 dialog.messageChild(JSON.stringify(initialization))
               } else if (message.type === 'save') {
@@ -68,6 +73,8 @@ export function openEditorDialog(
                   source: message.source,
                   theme: message.theme,
                   size: message.size,
+                  svg: message.svg,
+                  raster: message.raster,
                 })
               } else {
                 finish(null)

@@ -6,7 +6,7 @@
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>9e2ab43d-705f-4f59-b861-a2b35eca6d41</Id>
-  <Version>1.0.1.0</Version>
+  <Version>1.0.2.0</Version>
   <ProviderName>aleserb</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Mermaid Office"/>
@@ -56,21 +56,6 @@
                   <bt:Image size="32" resid="MermaidOffice.Icon.32"/>
                   <bt:Image size="80" resid="MermaidOffice.Icon.80"/>
                 </Icon>
-                <Control xsi:type="Button" id="MermaidOffice.InsertButton">
-                  <Label resid="MermaidOffice.Insert.Label"/>
-                  <Supertip>
-                    <Title resid="MermaidOffice.Insert.Label"/>
-                    <Description resid="MermaidOffice.Insert.Tooltip"/>
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="MermaidOffice.Icon.16"/>
-                    <bt:Image size="32" resid="MermaidOffice.Icon.32"/>
-                    <bt:Image size="80" resid="MermaidOffice.Icon.80"/>
-                  </Icon>
-                  <Action xsi:type="ExecuteFunction">
-                    <FunctionName>insertDefaultDiagram</FunctionName>
-                  </Action>
-                </Control>
                 <Control xsi:type="Button" id="MermaidOffice.TaskpaneButton">
                   <Label resid="MermaidOffice.Editor.Label"/>
                   <Supertip>
@@ -117,22 +102,18 @@
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="MermaidOffice.Group.Label" DefaultValue="Mermaid"/>
-        <bt:String id="MermaidOffice.Insert.Label" DefaultValue="Mermaid"/>
-        <bt:String id="MermaidOffice.Editor.Label" DefaultValue="Open editor"/>
+        <bt:String id="MermaidOffice.Editor.Label" DefaultValue="Mermaid"/>
         <bt:String
           id="MermaidOffice.GetStarted.Title"
           DefaultValue="Create Mermaid diagrams in Word"/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String
-          id="MermaidOffice.Insert.Tooltip"
-          DefaultValue="Insert a new Mermaid flowchart at the current selection."/>
-        <bt:String
           id="MermaidOffice.Editor.Tooltip"
-          DefaultValue="Open the Mermaid source editor and live preview."/>
+          DefaultValue="Open the Mermaid editor to insert a new diagram or update the selected diagram."/>
         <bt:String
           id="MermaidOffice.GetStarted.Desc"
-          DefaultValue="Use Insert > Mermaid to add a diagram, or open the editor to write Mermaid source."/>
+          DefaultValue="Use Insert > Mermaid to create a diagram or edit the selected Mermaid diagram."/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

@@ -135,26 +135,38 @@ function App() {
   const handleOpenDialog = async () => {
     setNotice('')
     try {
-      const result = await openEditorDialog(source, theme, size)
+      const result = await openEditorDialog(
+        source,
+        theme,
+        size,
+        selectedDiagram ? 'update' : 'insert',
+      )
       if (result === null) {
         return
       }
 
       setIsInserting(true)
-      const rendered = await renderMermaid(result.source, result.theme)
       const format = selectedDiagram
         ? await updateDiagram(
-            rendered,
+            result.svg,
             selectedDiagram,
             result.source,
             result.theme,
             result.size,
             result.size !== selectedDiagram.size,
+            result.raster,
           )
-        : await insertDiagram(rendered, result.source, result.theme, result.size)
+        : await insertDiagram(
+            result.svg,
+            result.source,
+            result.theme,
+            result.size,
+            result.raster,
+          )
       setSource(result.source)
       setTheme(result.theme)
       setSize(result.size)
+      setSvg(result.svg)
       setPreferredTheme(result.theme)
       if (selectedDiagram) {
         setSelectedDiagram({
