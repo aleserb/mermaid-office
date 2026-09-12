@@ -39,41 +39,34 @@ export async function getSelectedDiagram(): Promise<DiagramPayload | null> {
 
   return Word.run(async (context) => {
     const selection = context.document.getSelection()
-    const directParent = selection.parentContentControlOrNullObject
     const selectedPicture = selection.inlinePictures.getFirstOrNullObject()
-    directParent.load('tag')
     await context.sync()
 
-    let contentControl = directParent
-    if (directParent.isNullObject) {
-      if (selectedPicture.isNullObject) {
+    // Enter can extend a diagram's hidden control to include blank paragraphs.
+    // Being inside that control is not the same as selecting its picture.
+    if (selectedPicture.isNullObject) {
+      return null
+    }
+
+    let contentControl = selectedPicture.parentContentControlOrNullObject
+    contentControl.load('tag')
+    await context.sync()
+
+    if (contentControl.isNullObject) {
+      const embeddedPayload = await readPicturePayload(context, selectedPicture)
+      if (!embeddedPayload) {
         return null
       }
 
-      contentControl = selectedPicture.parentContentControlOrNullObject
-      contentControl.load('tag')
+      const recoveredPayload = copyWithNewId(embeddedPayload)
+      contentControl = selectedPicture.insertContentControl()
+      configureRecoveredContentControl(contentControl, recoveredPayload)
+      context.document.settings.add(
+        getDocumentSettingKey(recoveredPayload.id),
+        JSON.stringify(recoveredPayload),
+      )
       await context.sync()
-
-      if (contentControl.isNullObject) {
-        const embeddedPayload = await readPicturePayload(context, selectedPicture)
-        if (!embeddedPayload) {
-          return null
-        }
-
-        const recoveredPayload = copyWithNewId(embeddedPayload)
-        contentControl = selectedPicture.insertContentControl()
-        configureRecoveredContentControl(contentControl, recoveredPayload)
-        context.document.settings.add(
-          getDocumentSettingKey(recoveredPayload.id),
-          JSON.stringify(recoveredPayload),
-        )
-        await context.sync()
-        return recoveredPayload
-      }
-    }
-
-    if (contentControl.isNullObject) {
-      return null
+      return recoveredPayload
     }
 
     const id = getDiagramIdFromTag(contentControl.tag)

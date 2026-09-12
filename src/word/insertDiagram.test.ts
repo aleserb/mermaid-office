@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fitDiagram,
   findVisiblePixelBounds,
@@ -12,6 +12,7 @@ const transparentPixel =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwX9WQAAAABJRU5ErkJggg=='
 
 describe('Word diagram insertion', () => {
+  afterEach(() => vi.unstubAllGlobals())
   describe('fitDiagram', () => {
     it('keeps small diagrams at their natural size', () => {
       expect(fitDiagram(200, 100)).toEqual({ width: 200, height: 100 })
@@ -56,7 +57,9 @@ describe('Word diagram insertion', () => {
     expect(result.svg).not.toContain('max-width')
   })
 
-  it('replaces the first PNG after Word establishes its content control', async () => {
+  it.each(['outside', 'expanded', 'empty', 'unrelated'])(
+    'inserts independently of an %s enclosing control',
+    async (enclosingKind) => {
     const sync = vi.fn().mockResolvedValue(undefined)
     const insertInlinePictureFromBase64 = vi.fn()
     const contentControl = {
@@ -75,10 +78,31 @@ describe('Word diagram insertion', () => {
     }
     insertInlinePictureFromBase64.mockReturnValue(picture)
     const insertContentControl = vi.fn().mockReturnValue(contentControl)
+    const isolated = { tag: '', title: '', appearance: '', cannotDelete: true, cannotEdit: true }
+    const pictureRange = {
+      track: vi.fn(),
+      untrack: vi.fn(),
+      insertContentControl: vi.fn().mockReturnValue(isolated),
+    }
+    const enclosing = {
+      isNullObject: enclosingKind === 'outside',
+      tag: enclosingKind === 'unrelated' ? 'other-addin' : 'mermaid-office:v1:previous',
+      load: vi.fn(),
+      delete: vi.fn(),
+      inlinePictures: {
+        getFirstOrNullObject: vi.fn().mockReturnValue({
+          isNullObject: enclosingKind === 'empty',
+          getRange: vi.fn().mockReturnValue(pictureRange),
+        }),
+      },
+    }
     const settingsAdd = vi.fn()
     const context = {
       document: {
-        getSelection: () => ({ insertContentControl }),
+        getSelection: () => ({
+          insertContentControl,
+          parentContentControlOrNullObject: enclosing,
+        }),
         settings: { add: settingsAdd },
       },
       sync,
@@ -113,11 +137,12 @@ describe('Word diagram insertion', () => {
       expect.any(String),
       'Replace',
     )
-    expect(sync).toHaveBeenCalledTimes(3)
-    expect(sync.mock.invocationCallOrder[0]).toBeLessThan(
+    const syncCount = enclosingKind === 'expanded' ? 9 : enclosingKind === 'empty' ? 6 : 4
+    expect(sync).toHaveBeenCalledTimes(syncCount)
+    expect(sync.mock.invocationCallOrder[syncCount - 3]).toBeLessThan(
       insertInlinePictureFromBase64.mock.invocationCallOrder[0],
     )
-    expect(sync.mock.invocationCallOrder[1]).toBeLessThan(
+    expect(sync.mock.invocationCallOrder[syncCount - 2]).toBeLessThan(
       insertInlinePictureFromBase64.mock.invocationCallOrder[1],
     )
     expect(contentControl.tag).toBe(`mermaid-office:v1:${payload.id}`)
@@ -128,9 +153,28 @@ describe('Word diagram insertion', () => {
       getDocumentSettingKey(payload.id),
       JSON.stringify(payload),
     )
+    if (enclosingKind === 'expanded' || enclosingKind === 'empty') {
+      expect(enclosing.delete).toHaveBeenCalledWith(true)
+      expect(enclosing.delete.mock.invocationCallOrder[0]).toBeLessThan(
+        insertContentControl.mock.invocationCallOrder[0],
+      )
+    } else {
+      expect(enclosing.delete).not.toHaveBeenCalled()
+    }
+    if (enclosingKind === 'expanded') {
+      expect(pictureRange.track).toHaveBeenCalledOnce()
+      expect(pictureRange.untrack).toHaveBeenCalledOnce()
+      expect(isolated.tag).toBe('mermaid-office:v1:previous')
+      expect(isolated.appearance).toBe('Hidden')
+      expect(pictureRange.insertContentControl.mock.invocationCallOrder[0]).toBeLessThan(
+        insertContentControl.mock.invocationCallOrder[0],
+      )
+    } else {
+      expect(pictureRange.insertContentControl).not.toHaveBeenCalled()
+    }
   })
 
-  it('recreates the content control when updating a diagram', async () => {
+  it.each([true, false])('only updates with a selected picture: %s', async (pictureSelected) => {
     const sync = vi.fn().mockResolvedValue(undefined)
     const insertInlinePictureFromBase64 = vi.fn().mockReturnValue({
       altTextTitle: '',
@@ -200,7 +244,10 @@ describe('Word diagram insertion', () => {
         getSelection: () => ({
           parentContentControlOrNullObject: contentControl,
           inlinePictures: {
-            getFirstOrNullObject: vi.fn().mockReturnValue({ isNullObject: true }),
+            getFirstOrNullObject: vi.fn().mockReturnValue({
+              isNullObject: !pictureSelected,
+              parentContentControlOrNullObject: contentControl,
+            }),
           },
         }),
         settings: { add: vi.fn() },
@@ -215,7 +262,7 @@ describe('Word diagram insertion', () => {
       ContentControlAppearance: { hidden: 'Hidden' },
     })
 
-    await updateDiagram(
+    const update = updateDiagram(
       '<svg/>',
       existing,
       'flowchart LR\nA',
@@ -224,6 +271,14 @@ describe('Word diagram insertion', () => {
       false,
       { base64: transparentPixel, width: 100, height: 60 },
     )
+
+    if (!pictureSelected) {
+      await expect(update).rejects.toThrow('Select the Mermaid diagram')
+      expect(contentControl.delete).not.toHaveBeenCalled()
+      expect(insertInlinePictureFromBase64).not.toHaveBeenCalled()
+      return
+    }
+    await update
 
     expect(getRange).toHaveBeenCalledWith('Before')
     expect(track).toHaveBeenCalledOnce()

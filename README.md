@@ -72,7 +72,9 @@ with Redux Color when no theme preference has been saved.
 
 The ribbon's **Mermaid Editor** command opens this dialog directly without opening the
 task pane. The dialog shows **Insert** for a new diagram and **Update** when an
-existing Mermaid diagram is selected. Because this changes `manifest.xml`,
+existing Mermaid diagram picture is selected. A cursor on a blank line or in
+surrounding text starts a new diagram, even if Word has extended a hidden diagram
+content control over that text. Because this changes `manifest.xml`,
 remove and upload the manifest again after deployment.
 
 ## Checks

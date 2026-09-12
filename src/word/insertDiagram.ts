@@ -2,6 +2,7 @@ import { embedPayloadInPng, setPngPhysicalWidth } from '../metadata/pngMetadata'
 import {
   createDiagramPayload,
   getContentControlTag,
+  getDiagramIdFromTag,
   getDocumentSettingKey,
   type DiagramFormat,
   type DiagramPayload,
@@ -174,7 +175,7 @@ function configureDiagramPicture(picture: Word.InlinePicture) {
 
 function configureDiagramContentControl(
   contentControl: Word.ContentControl,
-  payload: DiagramPayload,
+  payload: Pick<DiagramPayload, 'id'>,
 ) {
   contentControl.tag = getContentControlTag(payload.id)
   contentControl.title = 'Mermaid diagram'
@@ -183,11 +184,43 @@ function configureDiagramContentControl(
   contentControl.cannotEdit = false
 }
 
+async function separateEnclosingDiagram(context: Word.RequestContext): Promise<void> {
+  const enclosing = context.document.getSelection().parentContentControlOrNullObject
+  enclosing.load('tag')
+  await context.sync()
+  const id = enclosing.isNullObject ? null : getDiagramIdFromTag(enclosing.tag)
+  if (!id) {
+    return
+  }
+
+  const picture = enclosing.inlinePictures.getFirstOrNullObject()
+  await context.sync()
+  if (picture.isNullObject) {
+    enclosing.delete(true)
+    await context.sync()
+    return
+  }
+
+  // Keep typed paragraphs outside the old diagram so a new diagram is not nested
+  // inside it (and subsequently deleted when the old diagram is updated).
+  const pictureRange = picture.getRange()
+  pictureRange.track()
+  await context.sync()
+  enclosing.delete(true)
+  await context.sync()
+  const isolated = pictureRange.insertContentControl()
+  configureDiagramContentControl(isolated, { id })
+  await context.sync()
+  pictureRange.untrack()
+  await context.sync()
+}
+
 export async function insertPngObject(
   raster: RasterizedDiagram,
   payload: DiagramPayload,
 ): Promise<void> {
   await Word.run(async (context) => {
+    await separateEnclosingDiagram(context)
     const selection = context.document.getSelection()
     const contentControl = selection.insertContentControl()
     configureDiagramContentControl(contentControl, payload)
@@ -249,21 +282,16 @@ export async function updateDiagram(
 
   await Word.run(async (context) => {
     const selection = context.document.getSelection()
-    const directParent = selection.parentContentControlOrNullObject
     const selectedPicture = selection.inlinePictures.getFirstOrNullObject()
-    directParent.load('tag')
     await context.sync()
 
-    let contentControl = directParent
-    if (directParent.isNullObject) {
-      if (selectedPicture.isNullObject) {
-        throw new Error('Select the Mermaid diagram you want to update.')
-      }
-      contentControl = selectedPicture.parentContentControlOrNullObject
-      contentControl.load('tag')
-      await context.sync()
+    if (selectedPicture.isNullObject) {
+      throw new Error('Select the Mermaid diagram you want to update.')
     }
 
+    const contentControl = selectedPicture.parentContentControlOrNullObject
+    contentControl.load('tag')
+    await context.sync()
     if (
       contentControl.isNullObject ||
       contentControl.tag !== getContentControlTag(existing.id)
