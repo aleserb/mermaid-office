@@ -20,11 +20,12 @@ export function openEditorDialog(
     return Promise.reject(new Error('The expanded editor is available inside Microsoft Word.'))
   }
 
-  const editorUrl = new URL('editor.html', window.location.href).href
+  const editorUrl = new URL('editor.html', window.location.href)
+  editorUrl.searchParams.set('v', String(Date.now()))
 
   return new Promise((resolve, reject) => {
     Office.context.ui.displayDialogAsync(
-      editorUrl,
+      editorUrl.href,
       { height: 80, width: 80, displayInIframe: true },
       (result) => {
         if (result.status === Office.AsyncResultStatus.Failed) {

@@ -20,6 +20,17 @@
   margin: 0;
 }
 
+.dialog-title {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+}
+
+.build-version {
+  color: #616161;
+  white-space: nowrap;
+}
+
 .dialog-actions {
   display: flex;
   gap: 8px;

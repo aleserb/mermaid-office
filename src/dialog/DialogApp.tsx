@@ -112,7 +112,12 @@ export function DialogApp() {
     <FluentProvider theme={webLightTheme}>
       <main className="dialog-shell">
         <header className="dialog-header">
-          <Title2 as="h1">Mermaid Diagram</Title2>
+          <div className="dialog-title">
+            <Title2 as="h1">Mermaid Diagram</Title2>
+            <Text className="build-version" size={200}>
+              Build {__BUILD_VERSION__}
+            </Text>
+          </div>
           <div className="dialog-actions">
             <Button onClick={() => sendToParent({ type: 'cancel' })}>Discard Changes</Button>
             <Button
