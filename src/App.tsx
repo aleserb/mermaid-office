@@ -239,7 +239,7 @@ function App() {
           ariaLabel="Mermaid diagram workspace"
           left={
             <div className="panel">
-              <div className="editor-heading">
+              <div className="panel-heading">
                 <Text weight="semibold">Diagram source</Text>
                 <div className="diagram-options">
                   <SyntaxHelpLink />
@@ -262,7 +262,9 @@ function App() {
           }
           right={
             <div className="panel">
-              <Text weight="semibold">Preview</Text>
+              <div className="panel-heading">
+                <Text weight="semibold">Preview</Text>
+              </div>
               <DiagramPreview
                 key={svg}
                 svg={svg}

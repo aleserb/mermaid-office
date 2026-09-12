@@ -24,9 +24,10 @@
 }
 
 .workspace {
+  column-gap: 2px;
   flex: 1;
-  gap: 2px;
   min-height: 480px;
+  row-gap: 8px;
 }
 
 .panel {

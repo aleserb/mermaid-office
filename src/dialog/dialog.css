@@ -26,12 +26,20 @@
 }
 
 .dialog-workspace {
+  column-gap: 2px;
   flex: 1;
-  gap: 2px;
   min-height: 0;
+  row-gap: 8px;
 }
 
 .dialog-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.dialog-editor-body {
   display: flex;
   flex-direction: column;
   gap: 8px;

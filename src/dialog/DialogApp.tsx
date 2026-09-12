@@ -114,8 +114,8 @@ export function DialogApp() {
             ariaLabel="Mermaid diagram workspace"
             left={
               <div className="dialog-panel">
-              <div className="editor-heading">
-                <Text weight="semibold">Diagram source</Text>
+                <div className="panel-heading">
+                  <Text weight="semibold">Diagram source</Text>
                   <div className="diagram-options">
                     <SyntaxHelpLink />
                     <ThemePicker
@@ -126,23 +126,27 @@ export function DialogApp() {
                       }}
                     />
                   </div>
-              </div>
-                <MermaidEditor
-                  value={source}
-                  onChange={setSource}
-                  diagnostic={error}
-                />
-              {error && (
-                <MessageBar intent="error">
-                    <MessageBarBody>{error.message}</MessageBarBody>
-                </MessageBar>
-              )}
+                </div>
+                <div className="dialog-editor-body">
+                  <MermaidEditor
+                    value={source}
+                    onChange={setSource}
+                    diagnostic={error}
+                  />
+                  {error && (
+                    <MessageBar intent="error">
+                      <MessageBarBody>{error.message}</MessageBarBody>
+                    </MessageBar>
+                  )}
+                </div>
               </div>
             }
             right={
               <div className="dialog-panel">
-              <Text weight="semibold">Preview</Text>
-              <DiagramPreview key={svg} svg={svg} loading={rendering} />
+                <div className="panel-heading">
+                  <Text weight="semibold">Preview</Text>
+                </div>
+                <DiagramPreview key={svg} svg={svg} loading={rendering} />
               </div>
             }
           />
