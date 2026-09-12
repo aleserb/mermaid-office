@@ -12,7 +12,7 @@ import { embedPayloadInSvg } from '../metadata/svgMetadata'
 
 export type { DiagramFormat } from '../metadata/payload'
 
-interface RasterizedDiagram {
+export interface RasterizedDiagram {
   base64: string
   width: number
   height: number
@@ -101,11 +101,10 @@ function configureDiagramContentControl(
   contentControl.appearance = Word.ContentControlAppearance.hidden
   contentControl.cannotDelete = false
   contentControl.cannotEdit = false
-  contentControl.select()
   return contentControl
 }
 
-async function insertPngObject(
+export async function insertPngObject(
   raster: RasterizedDiagram,
   payload: DiagramPayload,
 ): Promise<void> {
@@ -124,6 +123,11 @@ async function insertPngObject(
     )
     picture.width = dimensions.width
     picture.height = dimensions.height
+
+    // Commit the picture before wrapping it. Word on the web can otherwise
+    // create an empty content control beside the newly inserted image.
+    await context.sync()
+
     configureDiagramContentControl(picture, payload)
     context.document.settings.add(getDocumentSettingKey(payload.id), JSON.stringify(payload))
     await context.sync()
