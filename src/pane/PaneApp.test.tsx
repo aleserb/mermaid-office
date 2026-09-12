@@ -111,7 +111,8 @@ it('shows a header Update button for a large diagram and writes only on click', 
     onSelected(selected)
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   })
-  vi.mocked(updateDiagramById).mockResolvedValueOnce('png')
+  let finishUpdate!: (format: 'png') => void
+  vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise(resolve => { finishUpdate = resolve }))
   const user = userEvent.setup()
   const { container } = render(<PaneApp />)
   await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
@@ -123,8 +124,13 @@ it('shows a header Update button for a large diagram and writes only on click', 
   await waitFor(() => expect(update).toBeEnabled(), { timeout: 2000 })
   expect(updateDiagramById).not.toHaveBeenCalled()
   expect(screen.getByRole('status')).toHaveTextContent('Click Update to apply.')
+  expect(container.querySelector('.editor-shell')?.nextElementSibling).toBe(screen.getByRole('status'))
   await user.click(update)
   expect(updateDiagramById).toHaveBeenCalledOnce()
+  expect(screen.getByRole('status')).toHaveTextContent('Writing diagram to Word...')
+  expect(container.querySelector('main')?.lastElementChild).toBe(screen.getByRole('status'))
+  expect(screen.getByRole('banner').nextElementSibling).toBe(container.querySelector('.editor-shell'))
+  await act(async () => finishUpdate('png'))
   await waitFor(() => expect(update).toBeDisabled())
 })
 
@@ -303,6 +309,8 @@ it('opens Office-hosted settings without a pane modal and unlocks after an openi
   expect(open.mock.calls[0][0]).toMatchObject({ settings: DEFAULT_DIAGRAM_SETTINGS, diagramKind: 'flowchart' })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(container.querySelector('main')).toHaveAttribute('inert')
+  expect(container.querySelector('main')?.lastElementChild).toHaveTextContent('Settings window is open.')
+  expect(screen.getByRole('banner', { hidden: true }).nextElementSibling).toBe(container.querySelector('.editor-shell'))
   act(() => {
     open.mock.calls[0][1].onError('Settings popup was blocked.')
     open.mock.calls[0][1].onClose()

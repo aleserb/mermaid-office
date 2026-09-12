@@ -92,6 +92,8 @@ editing so changes stay attached to the selected diagram.
 The Word picture itself is the live preview. Parse failures appear below the
 code editor and in its gutter, keep the last valid picture visible in Word,
 and prevent insertion or live updates until the source is valid.
+Writing progress, unsaved-change reminders, and settings-window status appear
+at the bottom of the pane below the editor and any error messages.
 
 The source editor includes Mermaid-aware syntax highlighting and autocomplete,
 common diagram snippets, automatic bracket and quote closing, standard editor
@@ -183,13 +185,41 @@ discarding pending edits does not undo changes already written to Word.
 npm run lint
 npm test
 npm run build
+npm run validate:manifest
 ```
+
+Or run `npm run check` for all four gates. Use Node.js 24 and `npm ci` to install
+the committed dependency versions. Production manifest validation uses Microsoft's
+validator and requires network access; a service failure blocks the release.
+`fs-extra` is pinned explicitly because the validator's
+`@microsoft/app-manifest` dependency imports it at runtime but declares it only
+as a development dependency.
+The validator's `adm-zip` dependency is overridden to patched version 0.6.1
+instead of its upstream-pinned 0.6.0.
 
 ## Deployment
 
-Run `npm run deploy` to build the application and publish `dist` to the
-`gh-pages` branch. Configure the repository's Pages source as the root of that
-branch before the first deployment.
+The [Release workflow](.github/workflows/release.yml) runs lint, the full test
+suite, a type-checked production build, and production Office manifest validation
+for pull requests and pushes to `main`. Only successful `main` runs can upload and
+deploy the exact validated `dist` artifact to GitHub Pages. Pull requests cannot
+deploy or access deployment permissions. Main-branch releases are serialized.
+
+Push a change to `main` to release it automatically. To redeploy the current
+`main`, use `npm run deploy` with an authenticated GitHub CLI, or dispatch
+**Release** in GitHub Actions. The command queues the workflow; it does not mean
+deployment has finished. Follow the run in Actions or with `gh run watch`.
+Local uncommitted files and a locally built `dist` are never published by this
+command. A failed gate leaves the previously deployed site in place.
+
+Pages must use **GitHub Actions** as its build source, and the `github-pages`
+environment must allow deployments from `main`. The legacy `gh-pages` branch
+is no longer a deployment source. To roll back, revert the problematic commit
+on `main` and let the same validation and deployment gates run.
+
+For merge enforcement, repository maintainers can make **Validate release** a
+required status check in a branch ruleset. The deployment workflow enforces its
+own gates regardless of whether that merge rule is enabled.
 
 GitHub Pages for a private repository requires a GitHub plan that supports
 private Pages sites. Otherwise, make the repository public or upgrade the

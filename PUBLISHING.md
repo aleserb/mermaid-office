@@ -125,9 +125,10 @@ have already passed on every platform.
 - [ ] Review dependency licenses and ensure required third-party notices are
   included in the distributed build. The project MIT License does not replace them.
 - [ ] Complete the cross-platform and accessibility coverage above and retain results.
-- [ ] Run the existing test, lint, and build commands and Microsoft's official
-  manifest/store validation. The repository's manifest test is not a substitute
-  for Microsoft's validation service.
+- [ ] Require a successful Release workflow for the submitted revision. It runs
+  lint, all tests, the production build, and Microsoft's production manifest
+  validation. Automated validation is not a substitute for Marketplace review
+  or hands-on Office compatibility testing.
 - [ ] Confirm all policy/support URLs and manifest assets are live over HTTPS,
   accessible without sign-in, and do not redirect to the task pane.
 - [ ] Enter listing details, legal URLs, screenshots, and certification notes
@@ -144,6 +145,11 @@ endorsement.
 
 Keep the add-in ID unchanged for updates. Increment the manifest version when
 appropriate, deploy the app and public pages together, and verify live URLs.
+Pushes to `main` automatically run the Release workflow; deployment uses the
+artifact built by that same successful run. Pull requests run the gates without
+publishing. `npm run check` runs the same gates locally; `npm run deploy` queues
+the workflow for remote `main`, rather than uploading local build files. See the
+README for Pages configuration, run monitoring, and rollback instructions.
 Changes to data handling must be reflected in the privacy policy with a new
 effective date. Update the EULA if relevant terms change while respecting MIT
 rights already granted.

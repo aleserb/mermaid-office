@@ -27,3 +27,13 @@ it('exposes exactly one Mermaid ribbon button that opens the default pane', () =
   expect(manifest.getElementsByTagNameNS('*', 'FunctionFile')).toHaveLength(0)
   expect(manifest.getElementsByTagNameNS('*', 'FunctionName')).toHaveLength(0)
 })
+
+it.each([
+  ['IconUrl', 32],
+  ['HighResolutionIconUrl', 64],
+] as const)('references the required %s asset size', (elementName, size) => {
+  const manifest = new DOMParser().parseFromString(manifestSource, 'application/xml')
+  const url = new URL(manifest.getElementsByTagNameNS('*', elementName)[0].getAttribute('DefaultValue')!)
+  expect(url.origin).toBe('https://aleserb.github.io')
+  expect(url.pathname).toBe(`/mermaid-office/assets/icon-${size}.png`)
+})

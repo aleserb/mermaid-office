@@ -125,8 +125,6 @@ export function PaneApp() {
           </div>
         </header>
 
-        {status && <Caption1 role="status">{status}</Caption1>}
-        {editor.settingsActive && <Caption1 role="status">Settings window is open.</Caption1>}
         {editor.ready ? (
           <MermaidEditor
             value={editor.draft.source}
@@ -149,6 +147,9 @@ export function PaneApp() {
             <MessageBarBody>{editor.diagnostic.message}</MessageBarBody>
           </MessageBar>
         )}
+
+        {status && <Caption1 role="status">{status}</Caption1>}
+        {editor.settingsActive && <Caption1 role="status">Settings window is open.</Caption1>}
 
         <Dialog open={!!editor.pending} onOpenChange={(_, data) => {
           if (!data.open) editor.keepEditing()
