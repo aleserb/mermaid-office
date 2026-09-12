@@ -7,17 +7,17 @@ afterEach(() => {
 })
 
 describe('high-detail raster sizing', () => {
-  it('uses four pixels per displayed CSS pixel for small diagrams', () => {
-    expect(getRasterDimensions(100, 50, 'medium')).toEqual({ width: 1728, height: 864 })
-    expect(getRasterDimensions(100, 50, 'page-width')).toEqual({ width: 2496, height: 1248 })
+  it('covers 400% zoom at 2x screen density for small diagrams', () => {
+    expect(getRasterDimensions(100, 50, 'medium')).toEqual({ width: 3456, height: 1728 })
+    expect(getRasterDimensions(100, 50, 'page-width')).toEqual({ width: 4992, height: 2496 })
   })
 
-  it('preserves twice the native detail for dense diagrams when within budget', () => {
-    expect(getRasterDimensions(1600, 2400, 'medium')).toEqual({ width: 3200, height: 4800 })
+  it('preserves three times the native detail for dense diagrams when within budget', () => {
+    expect(getRasterDimensions(1200, 2400, 'medium')).toEqual({ width: 3600, height: 7200 })
   })
 
   it('does not depend on a Word size preset for native-resolution exports', () => {
-    expect(getRasterDimensions(300, 100)).toEqual({ width: 600, height: 200 })
+    expect(getRasterDimensions(300, 100)).toEqual({ width: 900, height: 300 })
   })
 
   it.each([
@@ -29,16 +29,17 @@ describe('high-detail raster sizing', () => {
     const result = getRasterDimensions(width, height, 'medium')
     expect(result.width).toBeLessThanOrEqual(8192)
     expect(result.height).toBeLessThanOrEqual(8192)
-    expect(result.width * result.height).toBeLessThanOrEqual(16 * 1024 * 1024)
+    expect(result.width * result.height).toBeLessThanOrEqual(32 * 1024 * 1024)
     expect(Math.abs(result.width - result.height * width / height))
       .toBeLessThanOrEqual(1 + width / height)
   })
 
   it('retains substantially more detail for the large sequence reproduction', () => {
     const result = getRasterDimensions(1853.84765625, 3236.24267578125, 'medium')
-    expect(result.width).toBeGreaterThan(3000)
-    expect(result.height).toBeGreaterThan(5000)
-    expect(result.width * result.height).toBeGreaterThan(10 * 864 * 1508)
+    expect(result.width).toBeGreaterThan(4300)
+    expect(result.height).toBeGreaterThan(7600)
+    expect(result.width * result.height).toBeGreaterThan(1.99 * 3100 * 5411)
+    expect(result.width).toBeGreaterThan(324 * (96 / 72) * 4 * 2)
   })
 
   it.each([[0, 10], [10, -1], [NaN, 10], [10, Infinity]])(
@@ -49,10 +50,13 @@ describe('high-detail raster sizing', () => {
   )
 })
 
-it.each([
+const rasterCases = [
   { label: 'full', left: 0, top: 0, right: 200, bottom: 100, x: 0, y: 0, width: 100, height: 50 },
   { label: 'cropped', left: 20, top: 10, right: 180, bottom: 90, x: 6, y: 1, width: 88, height: 48 },
-])('renders $label SVG bounds directly at final resolution and releases the probe canvas', async (bounds) => {
+].flatMap(bounds => ['success', 'unsupported', 'empty', 'error'].map(encoding => ({ ...bounds, encoding })))
+
+it.each(rasterCases)('renders $label SVG bounds directly and releases both canvases on $encoding', async (bounds) => {
+  const { encoding } = bounds
   const pixels = new Uint8ClampedArray(200 * 100 * 4)
   for (let y = bounds.top; y < bounds.bottom; y += 1) {
     for (let x = bounds.left; x < bounds.right; x += 1) {
@@ -70,7 +74,12 @@ it.each([
   })
   const output = Object.assign(document.createElement('canvas'), {
     getContext: vi.fn().mockReturnValue(outputContext),
-    toDataURL: vi.fn().mockReturnValue('data:image/png;base64,rendered-png'),
+    toDataURL: vi.fn().mockImplementation(() => {
+      if (encoding === 'error') throw new Error('PNG encoding failed')
+      if (encoding === 'unsupported') return 'data:,'
+      if (encoding === 'empty') return 'data:image/png;base64,'
+      return 'data:image/png;base64,rendered-png'
+    }),
   })
   vi.spyOn(document, 'createElement').mockReturnValueOnce(probe).mockReturnValueOnce(output)
   class VectorImage {
@@ -81,11 +90,15 @@ it.each([
   const revokeObjectURL = vi.fn()
   vi.stubGlobal('URL', { createObjectURL: () => 'blob:diagram', revokeObjectURL })
 
-  const result = await rasterizeSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>', 'medium')
+  const result = rasterizeSvg('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>', 'medium')
   const dimensions = getRasterDimensions(bounds.width, bounds.height, 'medium')
-  expect(result).toEqual({ base64: 'rendered-png', width: bounds.width, height: bounds.height })
-  expect(output.width).toBe(dimensions.width)
-  expect(output.height).toBe(dimensions.height)
+  if (encoding === 'success') {
+    await expect(result).resolves.toEqual({ base64: 'rendered-png', width: bounds.width, height: bounds.height })
+  } else {
+    await expect(result).rejects.toThrow(encoding === 'error' ? 'PNG encoding failed' : 'PNG resolution')
+  }
+  expect(output.width).toBe(1)
+  expect(output.height).toBe(1)
   expect(outputContext.drawImage).toHaveBeenCalledExactlyOnceWith(
     expect.any(VectorImage), bounds.x, bounds.y, bounds.width, bounds.height,
     0, 0, dimensions.width, dimensions.height,

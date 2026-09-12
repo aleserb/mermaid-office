@@ -20,9 +20,11 @@ compatibility strategy, and delivery plan.
 The add-in creates a tightly cropped PNG locally before inserting it into Word.
 Using one image format across desktop and web avoids host-specific SVG sizing
 differences and keeps insertion and update behavior consistent.
-The final PNG is rasterized directly from SVG, targeting 2x the diagram's native
-dimensions or 4x its intended display width, whichever provides more detail.
-Exports are bounded to 8192 pixels per side and about 16.8 megapixels to limit memory use.
+The final PNG is rasterized directly from SVG, targeting 3x the diagram's native
+dimensions or 8x its intended display width, whichever provides more detail.
+The display target covers 400% zoom on a 2x-density screen when within the export limits.
+Exports are bounded to 8192 pixels per side and about 33.6 megapixels to limit memory use;
+canvas backing stores are released immediately after encoding.
 Cropping, displayed Word size, and embedded source metadata are preserved.
 Pictures are inserted and updated as an inline Word drawing with explicit frame
 and image dimensions, keeping higher-resolution pixels inside the picture frame.

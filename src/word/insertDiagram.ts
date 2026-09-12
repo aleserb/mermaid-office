@@ -40,7 +40,7 @@ const DIAGRAM_WIDTHS: Record<DiagramSize, number> = {
 }
 
 const MAX_RASTER_DIMENSION = 8192
-const MAX_RASTER_PIXELS = 16 * 1024 * 1024
+const MAX_RASTER_PIXELS = 32 * 1024 * 1024
 
 export function getRasterDimensions(
   width: number,
@@ -50,9 +50,9 @@ export function getRasterDimensions(
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
     throw new Error('Diagram dimensions must be positive finite numbers.')
   }
-  // Preserve detail in dense diagrams instead of reducing every diagram to its
-  // page width. Small diagrams still get a 4x raster at their intended Word width.
-  const preferredScale = Math.max(2, size ? DIAGRAM_WIDTHS[size] * (96 / 72) * 4 / width : 2)
+  // Eight pixels per displayed CSS pixel cover 400% zoom on a 2x-density screen.
+  // Dense diagrams also target 3x native detail, within the same resource limits.
+  const preferredScale = Math.max(3, size ? DIAGRAM_WIDTHS[size] * (96 / 72) * 8 / width : 3)
   const scale = Math.min(
     preferredScale,
     MAX_RASTER_DIMENSION / width,
@@ -168,28 +168,39 @@ export async function rasterizeSvg(
     const output = window.document.createElement('canvas')
     output.width = dimensions.width
     output.height = dimensions.height
-    const outputContext = output.getContext('2d')
-    if (!outputContext) {
-      throw new Error('This browser cannot crop the PNG fallback.')
-    }
-    // Rasterize the vector source at the final resolution, not the bounds-probe
-    // bitmap: enlarging that bitmap would add pixels without adding detail.
-    outputContext.drawImage(
-      image,
-      left / scale,
-      top / scale,
-      logicalWidth,
-      logicalHeight,
-      0,
-      0,
-      output.width,
-      output.height,
-    )
+    try {
+      const outputContext = output.getContext('2d')
+      if (!outputContext) {
+        throw new Error('This browser cannot crop the PNG fallback.')
+      }
+      // Rasterize the vector source at the final resolution, not the bounds-probe
+      // bitmap: enlarging that bitmap would add pixels without adding detail.
+      outputContext.drawImage(
+        image,
+        left / scale,
+        top / scale,
+        logicalWidth,
+        logicalHeight,
+        0,
+        0,
+        output.width,
+        output.height,
+      )
 
-    return {
-      base64: output.toDataURL('image/png').split(',', 2)[1],
-      width: logicalWidth,
-      height: logicalHeight,
+      const dataUrl = output.toDataURL('image/png')
+      const base64 = dataUrl.split(',', 2)[1]
+      if (!dataUrl.startsWith('data:image/png;base64,') || !base64) {
+        throw new Error('This browser cannot export the diagram at this PNG resolution.')
+      }
+      return {
+        base64,
+        width: logicalWidth,
+        height: logicalHeight,
+      }
+    } finally {
+      // Release the large backing store immediately between live updates.
+      output.width = 1
+      output.height = 1
     }
   } finally {
     URL.revokeObjectURL(url)
