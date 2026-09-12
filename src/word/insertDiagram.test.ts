@@ -68,19 +68,23 @@ function mockSavedDiagram() {
     insertOoxml: vi.fn(),
   }
   const controls = { items: [control], load: vi.fn() }
-  const resizedPictures = { items: [replacement], load: vi.fn() }
+  const collectionPicture = { ...replacement }
+  const resizedPictures = { items: [collectionPicture], load: vi.fn() }
   const resizedControl = { ...control, load: vi.fn(), inlinePictures: resizedPictures }
   const resizedControls = { items: [resizedControl], load: vi.fn() }
   const setting = { isNullObject: false, value: JSON.stringify(existing), load: vi.fn() }
   const settingsAdd = vi.fn()
   const getByTag = vi.fn().mockReturnValueOnce(controls).mockReturnValue(resizedControls)
+  const getById = vi.fn().mockReturnValue({
+    inlinePictures: { getFirst: vi.fn().mockReturnValue(replacement) },
+  })
   const getSelection = vi.fn(() => {
     throw new Error('The cursor is on an unrelated diagram; selection must not be read.')
   })
   const context = {
     document: {
       getSelection,
-      contentControls: { getByTag },
+      contentControls: { getByTag, getById },
       settings: { add: settingsAdd, getItemOrNullObject: vi.fn().mockReturnValue(setting) },
     },
     sync: vi.fn().mockResolvedValue(undefined),
@@ -103,6 +107,7 @@ function mockSavedDiagram() {
     getByTag, getSelection, insertPicture, replacement, select, context,
     resizedPictures, resizedControl, resizedControls, resizeContext, afterInsert, run,
     insertionResult, insertOoxml,
+    getById,
   }
 }
 
@@ -513,7 +518,10 @@ describe('Word diagram updates by saved ID', () => {
     })
     expect(mock.run).toHaveBeenCalledTimes(2)
     expect(mock.getByTag).toHaveBeenCalledTimes(2)
+    expect(mock.getById).toHaveBeenCalledExactlyOnceWith(123)
+    expect(mock.replacement.load).toHaveBeenCalledWith('width,height')
     expect(mock.insertionResult).toEqual({ width: 0, height: 0 })
+    expect(mock.resizedPictures.items[0].width).toBe(0)
     expect(mock.picture.width).toBe(287)
     expect(mock.insertOoxml).not.toHaveBeenCalled()
     expect(mock.settingsAdd).toHaveBeenCalledWith(getDocumentSettingKey(mock.existing.id), JSON.stringify(payload))
@@ -590,7 +598,7 @@ describe('Word diagram updates by saved ID', () => {
     })
     await updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster)
     expect(mock.afterInsert).toHaveBeenCalledOnce()
-    expect(mock.resizeContext.sync).toHaveBeenCalledTimes(3)
+    expect(mock.resizeContext.sync).toHaveBeenCalledTimes(4)
     expect(mock.replacement.width).toBe(287)
     expect(mock.settingsAdd).toHaveBeenCalledOnce()
   })
@@ -616,6 +624,7 @@ describe('Word diagram updates by saved ID', () => {
       .rejects.toThrow(message)
     expect(mock.insertPicture).toHaveBeenCalledOnce()
     expect(mock.replacement.width).toBe(0)
+    expect(mock.getById).not.toHaveBeenCalled()
     expect(mock.settingsAdd).not.toHaveBeenCalled()
     expect(mock.control.delete).not.toHaveBeenCalled()
   })
@@ -638,6 +647,7 @@ describe('Word diagram updates by saved ID', () => {
   it('surfaces a failure from the final sizing request', async () => {
     const mock = mockSavedDiagram()
     mock.resizeContext.sync
+      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('Word could not resize the picture'))

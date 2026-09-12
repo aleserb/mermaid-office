@@ -472,11 +472,14 @@ export async function updateDiagramById(
     return { controlId: control.id, properties }
   })
 
-  // Word can retain the old bitmap's scale in the insertion context. Reacquire
-  // the picture in a new request before sizing it; OOXML imports avoid that bug
-  // but show Word's blocking progress dialog during live edits.
+  // Insertion results and collection items can retain old bitmap geometry.
+  // Resolve the picture directly by control ID in a new request before sizing.
+  // This avoids OOXML imports and their blocking dialog during live edits.
   await Word.run(async (context) => {
-    const { picture } = await getDiagramUpdateTarget(context, existing, update.controlId)
+    await getDiagramUpdateTarget(context, existing, update.controlId)
+    const picture = context.document.contentControls.getById(update.controlId).inlinePictures.getFirst()
+    picture.load('width,height')
+    await context.sync()
     picture.lockAspectRatio = false
     picture.width = update.properties.width
     picture.height = update.properties.height
