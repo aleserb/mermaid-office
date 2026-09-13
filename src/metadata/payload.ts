@@ -4,6 +4,7 @@ export const DIAGRAM_SCHEMA_VERSION = 1
 export const MERMAID_RENDERER_VERSION = '11.17.2'
 export const CONTENT_CONTROL_TAG_PREFIX = `mermaid-office:v${DIAGRAM_SCHEMA_VERSION}:`
 export const DOCUMENT_SETTING_PREFIX = 'mermaid-office:diagram:'
+export const EXCEL_SHAPE_NAME_PREFIX = `Mermaid Office v${DIAGRAM_SCHEMA_VERSION} `
 
 export type DiagramFormat = 'svg' | 'png'
 export type DiagramSize = 'small' | 'medium' | 'large' | 'page-width'
@@ -87,6 +88,19 @@ export function getDiagramIdFromTag(tag: string): string | null {
 
 export function getDocumentSettingKey(id: string): string {
   return `${DOCUMENT_SETTING_PREFIX}${id}`
+}
+
+export function getExcelShapeName(id: string): string {
+  return `${EXCEL_SHAPE_NAME_PREFIX}${id}`
+}
+
+export function getDiagramIdFromExcelShapeName(name: string): string | null {
+  if (!name.startsWith(EXCEL_SHAPE_NAME_PREFIX)) {
+    return null
+  }
+
+  const id = name.slice(EXCEL_SHAPE_NAME_PREFIX.length)
+  return id || null
 }
 
 export function parseDiagramPayload(value: string): DiagramPayload {

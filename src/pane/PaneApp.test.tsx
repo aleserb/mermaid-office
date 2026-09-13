@@ -9,6 +9,7 @@ import { DEFAULT_DIAGRAM_SETTINGS } from '../metadata/diagramSettings'
 import * as settingsWindows from '../settings/openSettingsWindow'
 import { watchSelectedDiagram } from '../word/selection'
 import { renderMermaid } from '../mermaid/render'
+import * as excelDiagram from '../excel/diagram'
 
 vi.mock('../mermaid/render', async (importOriginal) => ({
   ...await importOriginal<typeof import('../mermaid/render')>(),
@@ -24,6 +25,15 @@ vi.mock('../word/selection', () => ({
     onSelected(null)
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   }),
+}))
+vi.mock('../excel/diagram', () => ({
+  getSelectedDiagram: vi.fn().mockResolvedValue(null),
+  watchSelectedDiagram: vi.fn((onSelected) => {
+    onSelected(null)
+    return Object.assign(vi.fn(), { refresh: vi.fn() })
+  }),
+  insertDiagramWithPayload: vi.fn(),
+  updateDiagramById: vi.fn(),
 }))
 
 beforeEach(() => {
@@ -137,6 +147,30 @@ it('shows a header Update button for a large diagram and writes only on click', 
   vi.mocked(watchSelectedDiagram).mockImplementationOnce(onSelected => {
     onSelected(selected)
     return Object.assign(vi.fn(), { refresh: vi.fn() })
+  })
+
+  it('uses Excel host text and routes updates through the Excel adapter', async () => {
+    const selected = createDiagramPayload(`flowchart LR\n${'A-->B\n'.repeat(50)}`, 'png')
+    vi.stubGlobal('Office', {
+      onReady: vi.fn().mockResolvedValue({ host: 'Excel' }),
+      context: { document: {}, host: 'Excel' },
+    })
+    vi.mocked(excelDiagram.watchSelectedDiagram).mockImplementationOnce(onSelected => {
+      onSelected(selected)
+      return Object.assign(vi.fn(), { refresh: vi.fn() })
+    })
+    vi.mocked(excelDiagram.updateDiagramById).mockResolvedValueOnce('png')
+    const user = userEvent.setup()
+    const { container } = render(<PaneApp />)
+    await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
+    const code = EditorView.findFromDOM(container.querySelector<HTMLElement>('.cm-editor')!)
+    act(() => code!.dispatch({ changes: { from: code!.state.doc.length, insert: '\nB-->C' } }))
+    const update = await screen.findByRole('button', { name: 'Update' })
+    await waitFor(() => expect(update).toBeEnabled(), { timeout: 2000 })
+    expect(screen.getByRole('status')).toHaveTextContent('written to Excel')
+    await user.click(update)
+    await waitFor(() => expect(excelDiagram.updateDiagramById).toHaveBeenCalledOnce())
+    expect(updateDiagramById).not.toHaveBeenCalled()
   })
   let finishUpdate!: (format: 'png') => void
   vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise(resolve => { finishUpdate = resolve }))

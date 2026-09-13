@@ -1,7 +1,7 @@
 # Mermaid Office
 
-Mermaid Office is a client-side Microsoft Word add-in for creating and editing
-Mermaid diagrams. Mermaid renders locally in the Office task pane; no
+Mermaid Office is a client-side Microsoft Word and Excel add-in for creating and
+editing Mermaid diagrams. Mermaid renders locally in the Office task pane; no
 application server receives diagram source or document content.
 
 See [PUBLISHING.md](PUBLISHING.md) for Microsoft Marketplace listing information,
@@ -18,7 +18,7 @@ Production builds include generated
 - [End-user license agreement (EULA)](https://aleserb.github.io/mermaid-office/eula.html)
 - [Support and troubleshooting](https://aleserb.github.io/mermaid-office/support.html)
 
-These standalone pages are served from `public/` and do not require Word,
+These standalone pages are served from `public/` and do not require Word or Excel,
 Office.js, or an account to read. Diagram source is embedded in original diagram
 images and document metadata; sharing those files may also share the source.
 
@@ -32,7 +32,7 @@ images and document metadata; sharing those files may also share the source.
 - Vitest and Testing Library
 - GitHub Pages
 
-The add-in creates a tightly cropped PNG locally before inserting it into Word.
+The add-in creates a tightly cropped PNG locally before inserting it into Office.
 Using one image format across desktop and web avoids host-specific SVG sizing
 differences and keeps insertion and update behavior consistent.
 The final PNG is rasterized directly from SVG. Auto quality (the default) targets
@@ -69,8 +69,8 @@ npm run dev
 ```
 
 The regular browser view opens the code-only pane for UI development. Diagram
-insertion must be tested by sideloading `manifest.xml` in Microsoft Word.
-After manifest changes, remove and upload the manifest again because Word caches
+insertion must be tested by sideloading `manifest.xml` in Microsoft Word or Excel.
+After manifest changes, remove and upload the manifest again because Office caches
 the sideloaded manifest separately from the hosted web application.
 
 When the task pane is open, selecting an inserted Mermaid diagram loads its
@@ -109,7 +109,7 @@ declarations and existing messages, with declared aliases shown as descriptions.
 Suggestions are available for message senders and recipients, note references,
 and activation commands; use Ctrl+Space to request suggestions explicitly.
 
-The task pane, code editor, and settings window follow Word's light or dark
+The task pane, code editor, and settings window follow Office's light or dark
 appearance, with the system color preference as a fallback outside Office.
 The selected Mermaid theme independently controls the diagram's colors and
 exported PNG.
@@ -117,14 +117,14 @@ The code editor always uses the platform's System UI font at 12 px.
 This changes only the editor display, not the diagram output.
 
 The gear button opens an Office-hosted settings window outside the task pane.
-In Word on the web it floats over the Word workspace; desktop Word uses a separate,
+In Office on the web it floats over the document; desktop Office uses a separate,
 centered window. The code editor stays in the pane. Browser-only development, or
 hosts without the Office Dialog API, retain the in-pane settings form.
 Theme is in this window rather than above the code editor.
 Use Apply to change all selected settings together, or Cancel/Escape to discard
-the dialog changes. The window is non-modal, so the Word document remains
+the dialog changes. The window is non-modal, so the Office document remains
 interactive. The pane is temporarily locked to the original diagram: Apply updates
-that diagram before following a new Word selection. Cancel follows the new
+that diagram before following a new document selection. Cancel follows the new
 selection without applying settings. Deleted or externally changed diagrams
 are rejected by the existing update guards.
 Office-hosted settings require DialogApi 1.2. Loading, popup permission, and messaging
@@ -141,7 +141,7 @@ and Auto/Standard/High PNG quality. Type-specific controls appear only for the
 relevant diagram. There is no custom-color editor.
 ELK flowchart layout loads an additional bundled client-side module only when needed;
 no diagram data is sent to a layout service.
-These settings are stored with the diagram in Word and embedded PNG metadata.
+These settings are stored with the diagram in the document and embedded PNG metadata.
 The last applied settings are also remembered for new diagrams; older diagrams
 without settings retain their original defaults. Diagram font settings do not
 change the code editor's System UI font.
@@ -152,10 +152,10 @@ to its default does not suppress explicit frontmatter/init settings or directive
 such as `autonumber`. Visual-look support varies by diagram type; sequence diagrams
 do not support Hand-drawn.
 
-The ribbon has one **Insert > Mermaid** button, which opens the code-only
-right-hand task pane. There is no separate editor dialog or preview pane.
+The Word and Excel ribbons each have one **Insert > Mermaid** button, which opens
+the code-only right-hand task pane. There is no separate editor dialog or preview pane.
 Remove and upload the updated `manifest.xml` again to replace the old ribbon
-buttons; reopening a cached pane alone does not refresh Word's ribbon.
+buttons; reopening a cached pane alone does not refresh the Office ribbon.
 Place the cursor on a blank line and press **Insert** once. For small diagrams,
 valid edits then update the PNG directly in Word after a short typing pause.
 In Word on the web, edits to large diagrams remain in the pane until **Update**
@@ -176,12 +176,25 @@ next click. Switching diagrams with unsaved changes still requires confirmation.
 This avoids repeated large-picture imports while typing in Word on the web; an
 explicit Update can still show Word's own loading dialog.
 
-The pane automatically follows Word's selection. Select a Mermaid picture to
-load its source, or move to ordinary text or a blank line to start with the
-default source and **Insert** button. Repeated selection notifications
-do not reset your current draft. Switching with pending edits requires confirmation.
-Live updates modify the real document and can add Word undo/AutoSave changes;
-discarding pending edits does not undo changes already written to Word.
+The pane automatically follows the host application's selection. Select a Mermaid
+picture to load its source, or move to ordinary content to start with the default
+source and **Insert** button. Repeated selection notifications do not reset your
+current draft. Switching with pending edits requires confirmation. Live updates
+modify the real document and can add undo/AutoSave changes; discarding pending
+edits does not undo changes already written to the document.
+
+### Excel
+
+In Excel, select a cell and press **Insert**. The add-in places a PNG shape over
+that cell and stores its Mermaid source and settings in the workbook and in the
+image itself. Select a managed image shape to load it in the pane. Valid edits
+replace the shape while preserving its top-left position and displayed width.
+Copied shapes recover embedded metadata and receive a new identity when needed.
+
+Excel editing requires ExcelApi 1.19, which includes active-shape selection.
+The add-in reports an explicit compatibility error on older Excel clients.
+As in Word, desktop Excel uses live updates and Excel on the web uses explicit
+updates for large diagrams.
 
 ## Checks
 

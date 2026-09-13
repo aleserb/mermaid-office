@@ -69,11 +69,11 @@ export function PaneApp() {
     })
   }
   const status = editor.writing
-    ? 'Writing diagram to Word...'
+    ? `Writing diagram to ${editor.hostName}...`
     : editor.target && editor.dirty
       ? editor.manualUpdates
-        ? 'Changes not yet written to Word. Click Update to apply.'
-        : 'Changes not yet written to Word.'
+        ? `Changes not yet written to ${editor.hostName}. Click Update to apply.`
+        : `Changes not yet written to ${editor.hostName}.`
       : ''
 
   return (
@@ -166,7 +166,7 @@ export function PaneApp() {
             <DialogBody>
               <DialogTitle>Discard pending edits?</DialogTitle>
               <DialogContent>
-                Edits not yet written to Word will be discarded. Changes already saved in the document remain.
+                Edits not yet written to {editor.hostName} will be discarded. Changes already saved in the document remain.
               </DialogContent>
               <DialogActions>
                 <Button onClick={editor.keepEditing}>Keep editing</Button>

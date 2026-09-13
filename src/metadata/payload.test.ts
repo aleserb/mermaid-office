@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   CONTENT_CONTROL_TAG_PREFIX,
+  EXCEL_SHAPE_NAME_PREFIX,
   createDiagramPayload,
   getContentControlTag,
   getDiagramIdFromTag,
+  getDiagramIdFromExcelShapeName,
+  getExcelShapeName,
   parseDiagramPayload,
 } from './payload'
 
@@ -23,6 +26,9 @@ describe('diagram payload', () => {
     expect(getContentControlTag(payload.id)).toBe(`${CONTENT_CONTROL_TAG_PREFIX}diagram-id`)
     expect(getDiagramIdFromTag(getContentControlTag(payload.id))).toBe('diagram-id')
     expect(getDiagramIdFromTag('other:add-in')).toBeNull()
+    expect(getExcelShapeName(payload.id)).toBe(`${EXCEL_SHAPE_NAME_PREFIX}diagram-id`)
+    expect(getDiagramIdFromExcelShapeName(getExcelShapeName(payload.id))).toBe('diagram-id')
+    expect(getDiagramIdFromExcelShapeName('ordinary image')).toBeNull()
 
     vi.unstubAllGlobals()
   })

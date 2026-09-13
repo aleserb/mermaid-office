@@ -4,9 +4,9 @@ import { normalizeMermaidError, type MermaidDiagnostic } from '../mermaid/diagno
 import { detectDiagramKind, renderMermaid } from '../mermaid/render'
 import type { DiagramPayload, DiagramSize, DiagramTheme } from '../metadata/payload'
 import { getDiagramSettings, sameDiagramSettings, type DiagramSettings } from '../metadata/diagramSettings'
+import { getHostAdapter, type HostAdapter } from '../office/hostAdapter'
 import { getPreferredSettings, getPreferredTheme, setPreferredSettings, setPreferredTheme } from '../preferences/diagramPreferences'
-import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
-import { getSelectedDiagram, watchSelectedDiagram, type DiagramSelectionWatcher } from '../word/selection'
+import type { DiagramSelectionWatcher } from '../office/selectionWatcher'
 import { isLargeDiagram, requiresManualLargeDiagramUpdates } from './updateMode'
 
 export const LIVE_UPDATE_DELAY = 600
@@ -36,7 +36,7 @@ function sameDraft(
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unable to update the Word diagram.'
+  return error instanceof Error ? error.message : 'Unable to update the Office diagram.'
 }
 
 export function usePaneEditor() {
@@ -44,6 +44,7 @@ export function usePaneEditor() {
   const [draft, setDraft] = useState<Draft>(baseline)
   const [target, setTarget] = useState<DiagramPayload | null>(null)
   const [ready, setReady] = useState(false)
+  const [hostName, setHostName] = useState<'Word' | 'Excel'>('Word')
   const [writing, setWriting] = useState(false)
   const [loadingSelection, setLoadingSelection] = useState(false)
   const [rendered, setRendered] = useState<RenderedDraft | null>(null)
@@ -66,6 +67,7 @@ export function usePaneEditor() {
   const lastSelectionId = useRef<string | null | undefined>(undefined)
   const selectionFromDocument = useRef(false)
   const watcher = useRef<DiagramSelectionWatcher | null>(null)
+  const adapter = useRef<HostAdapter>(getHostAdapter())
 
   const activate = useCallback((payload: DiagramPayload | null) => {
     const next = payload
@@ -102,7 +104,7 @@ export function usePaneEditor() {
     setLoadingSelection(false)
     const id = payload?.id ?? null
 
-    // Picture replacement can clear Word's selection while focus stays in the
+    // Picture replacement can clear the host's selection while focus stays in the
     // pane. A real document selection gesture, however, must switch the editor.
     if (!payload && targetRef.current && !fromDocument && document.hasFocus()) return
     if (id === lastSelectionId.current) return
@@ -120,17 +122,19 @@ export function usePaneEditor() {
     const initialize = async () => {
       try {
         if (typeof Office === 'undefined') {
-          throw new Error('Open Mermaid inside Microsoft Word to insert or edit diagrams.')
+          throw new Error('Open Mermaid inside Microsoft Word or Excel to insert or edit diagrams.')
         }
-        await Office.onReady()
+        const info = await Office.onReady()
         if (!active) return
         if (!Office.context?.document) {
-          throw new Error('Open Mermaid inside Microsoft Word to follow document selection.')
+          throw new Error('Open Mermaid inside Microsoft Word or Excel to follow document selection.')
         }
+        adapter.current = getHostAdapter(info.host ?? Office.context.host)
+        setHostName(adapter.current.appName)
         manualLargeDiagramUpdates.current = requiresManualLargeDiagramUpdates(
           Office.context.platform === undefined ? undefined : String(Office.context.platform),
         )
-        watcher.current = watchSelectedDiagram(
+        watcher.current = adapter.current.watchSelectedDiagram(
           (selected) => {
             if (!active) return
             receiveSelection(selected)
@@ -199,13 +203,13 @@ export function usePaneEditor() {
       return
     }
 
-    // Only one Word write may be in flight. Edits made during it remain in draft
+    // Only one host write may be in flight. Edits made during it remain in draft
     // for the next automatic pass or explicit Update, never replaced by selection.
     busy.current = true
     setUpdateRequested(null)
     setWriting(true)
     setWordError('')
-    void updateDiagramById(
+    void adapter.current.updateDiagramById(
       rendered.svg, target, draft.source, draft.theme, draft.size, draft.size !== target.size,
       undefined, draft.settings,
     ).then((format) => {
@@ -297,10 +301,10 @@ export function usePaneEditor() {
     setWriting(true)
     setWordError('')
     try {
-      if (await getSelectedDiagram()) {
-        throw new Error('Place the cursor on a blank line before inserting a new diagram.')
+      if (await adapter.current.getSelectedDiagram()) {
+        throw new Error(adapter.current.insertionLocationError)
       }
-      const inserted = await insertDiagramWithPayload(
+      const inserted = await adapter.current.insertDiagramWithPayload(
         rendered.svg, draft.source, draft.theme, draft.size, undefined, { requireEmptySelection: true },
         draft.settings,
       )
@@ -333,7 +337,7 @@ export function usePaneEditor() {
   }
 
   return {
-    draft, target, ready, writing, loadingSelection, diagnostic, wordError, pending, historyKey, settingsActive,
+    draft, target, ready, hostName, writing, loadingSelection, diagnostic, wordError, pending, historyKey, settingsActive,
     manualUpdates, canUpdate, update,
     dirty: !sameDraft(draft, target ?? baseline),
     rendering: !rendered || !sameDraft(rendered.draft, draft),
