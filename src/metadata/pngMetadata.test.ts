@@ -11,7 +11,102 @@ import {
 const transparentPixel =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwX9WQAAAABJRU5ErkJggg=='
 
+function metadataChunk(source: string): Uint8Array {
+  const bytes = base64ToBytes(embedPayloadInPng(
+    transparentPixel,
+    createDiagramPayload(source, 'png'),
+  ))
+  return bytes.slice(base64ToBytes(transparentPixel).length - 12, -12)
+}
+
+function appendChunks(...chunks: Uint8Array[]): string {
+  const png = base64ToBytes(transparentPixel)
+  return bytesToBase64(new Uint8Array([
+    ...png.subarray(0, -12),
+    ...chunks.flatMap(chunk => Array.from(chunk)),
+    ...png.subarray(-12),
+  ]))
+}
+
+function textChunk(type: 'tEXt' | 'iTXt', keyword: string): Uint8Array {
+  const data = new TextEncoder().encode(`${keyword}${type === 'iTXt' ? '\0\0\0\0\0' : '\0'}unrelated text`)
+  const chunk = new Uint8Array(data.length + 12)
+  const view = new DataView(chunk.buffer)
+  view.setUint32(0, data.length)
+  chunk.set(new TextEncoder().encode(type), 4)
+  chunk.set(data, 8)
+  let crc = 0xffffffff
+  for (const byte of chunk.subarray(4, -4)) {
+    crc ^= byte
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0)
+    }
+  }
+  view.setUint32(chunk.length - 4, (crc ^ 0xffffffff) >>> 0)
+  return chunk
+}
+
 describe('PNG diagram metadata', () => {
+  it('replaces existing payloads without growing the PNG on repeated embeds', () => {
+    const original = createDiagramPayload('flowchart LR\nA --> B', 'png')
+    const updated = { ...original, source: 'flowchart LR\nB --> C', theme: 'dark' as const }
+    const first = embedPayloadInPng(transparentPixel, original)
+    const second = embedPayloadInPng(first, updated)
+
+    expect(readPayloadFromPng(second)).toEqual(updated)
+    expect(second).toBe(embedPayloadInPng(transparentPixel, updated))
+    expect(embedPayloadInPng(second, updated)).toBe(second)
+  })
+
+  it('reads the last legacy duplicate and removes all duplicates when embedding', () => {
+    const first = metadataChunk('flowchart LR\nA --> B')
+    const last = metadataChunk('flowchart LR\nB --> C')
+    const legacy = appendChunks(first, last)
+    const updated = createDiagramPayload('flowchart LR\nC --> D', 'png')
+
+    expect(readPayloadFromPng(legacy)?.source).toBe('flowchart LR\nB --> C')
+    expect(embedPayloadInPng(legacy, updated))
+      .toBe(embedPayloadInPng(transparentPixel, updated))
+  })
+
+  it('still rejects a corrupted later duplicate instead of returning stale metadata', () => {
+    const first = metadataChunk('flowchart LR\nA --> B')
+    const last = metadataChunk('flowchart LR\nB --> C')
+    last[last.length - 1] ^= 1
+    expect(() => readPayloadFromPng(appendChunks(first, last))).toThrow('integrity check')
+  })
+
+  it('preserves unrelated chunks and physical density when replacing metadata', () => {
+    const payload = createDiagramPayload('flowchart LR\nA --> B', 'png')
+    const withDensity = setPngPhysicalWidth(transparentPixel, 100)
+    const embedded = embedPayloadInPng(withDensity, payload)
+    const updated = { ...payload, source: 'flowchart LR\nB --> C' }
+    expect(embedPayloadInPng(embedded, updated)).toBe(embedPayloadInPng(withDensity, updated))
+  })
+
+  it('preserves unrelated text chunks but replaces every reserved-key text chunk', () => {
+    const unrelatedText = textChunk('tEXt', 'Author')
+    const unrelatedInternationalText = textChunk('iTXt', 'mermaid-office-other')
+    const original = appendChunks(
+      unrelatedText,
+      metadataChunk('flowchart LR\nA --> B'),
+      textChunk('tEXt', 'mermaid-office'),
+      unrelatedInternationalText,
+    )
+    const payload = createDiagramPayload('flowchart LR\nB --> C', 'png')
+    expect(embedPayloadInPng(original, payload)).toBe(embedPayloadInPng(
+      appendChunks(unrelatedText, unrelatedInternationalText),
+      payload,
+    ))
+  })
+
+  it('rejects truncated chunks while embedding rather than copying invalid boundaries', () => {
+    const bytes = base64ToBytes(transparentPixel)
+    new DataView(bytes.buffer).setUint32(8, bytes.length)
+    const payload = createDiagramPayload('flowchart LR\nA --> B', 'png')
+    expect(() => embedPayloadInPng(bytesToBase64(bytes), payload)).toThrow('truncated chunk')
+  })
+
   it('reads pixel dimensions independently of embedded source and physical density', () => {
     const payload = createDiagramPayload('flowchart LR\nA --> B', 'png')
     expect(getPngDimensions(transparentPixel)).toEqual({ width: 1, height: 1 })

@@ -9,7 +9,8 @@ import {
   getDocumentSettingKey,
   getExcelShapeName,
 } from '../metadata/payload'
-import { rasterizeSvg } from '../word/insertDiagram'
+import { rasterizeSvg } from '../rendering/rasterizeSvg'
+import type { UpdateDiagramRequest } from '../office/diagramRequests'
 import {
   getSelectedDiagram,
   insertDiagramWithPayload,
@@ -25,14 +26,13 @@ vi.mock('../mermaid/render', async importOriginal => ({
 vi.mock('../word/insertDiagram', () => ({
   insertDiagramWithPayload: vi.fn(),
   updateDiagramById: vi.fn(),
-  fitDiagram: vi.fn((width: number, height: number, maxWidth: number) => ({
-    width: maxWidth,
-    height: maxWidth * height / width,
-  })),
+}))
+vi.mock('../rendering/rasterizeSvg', () => ({
   rasterizeSvg: vi.fn().mockResolvedValue({ base64: 'png', width: 600, height: 400 }),
 }))
 
 interface FakeShape {
+  id: string
   isNullObject: boolean
   name: string
   type: string
@@ -46,15 +46,18 @@ interface FakeShape {
 }
 
 const values = new Map<string, string>()
-const saveAsync = vi.fn((callback: (result: { status: string }) => void) => {
+const saveAsync = vi.fn((callback: (result: { status: string; error?: { message: string } }) => void) => {
   callback({ status: 'succeeded' })
 })
+const sync = vi.fn<() => Promise<void>>()
 let activeShape: FakeShape
 let shapes: FakeShape[]
 let inserted: FakeShape[]
+let nextShapeId = 0
 
 function shape(overrides: Partial<FakeShape> = {}): FakeShape {
-  return {
+  const result: FakeShape = {
+    id: `shape-${nextShapeId++}`,
     isNullObject: false,
     name: '',
     type: 'Image',
@@ -63,23 +66,30 @@ function shape(overrides: Partial<FakeShape> = {}): FakeShape {
     width: 300,
     height: 200,
     load: vi.fn(),
-    delete: vi.fn(),
+    delete: vi.fn(() => {
+      shapes = shapes.filter(candidate => candidate !== result)
+      if (activeShape === result) activeShape = shape({ isNullObject: true })
+    }),
     getAsImage: vi.fn(() => ({ value: 'shape-png' })),
     ...overrides,
   }
+  return result
 }
 
 function setupExcel() {
   inserted = []
   const worksheet = {
+    id: 'worksheet-1',
+    load: vi.fn(),
     shapes: {
       addImage: vi.fn(() => {
         const result = shape()
         inserted.push(result)
+        shapes.push(result)
         return result
       }),
       getItemOrNullObject: vi.fn((name: string) =>
-        shapes.find((candidate) => candidate.name === name) ??
+        shapes.find((candidate) => candidate.name === name || candidate.id === name) ??
         shape({ isNullObject: true, name })),
     },
   }
@@ -87,6 +97,7 @@ function setupExcel() {
     items: [worksheet],
     load: vi.fn(),
     getActiveWorksheet: vi.fn(() => worksheet),
+    getItem: vi.fn(() => worksheet),
   }
   const workbook = {
     worksheets,
@@ -96,7 +107,7 @@ function setupExcel() {
   vi.stubGlobal('Excel', {
     PictureFormat: { png: 'PNG' },
     run: vi.fn(async (callback: (context: unknown) => unknown) =>
-      callback({ workbook, sync: vi.fn().mockResolvedValue(undefined) })),
+      callback({ workbook, sync })),
   })
   vi.stubGlobal('Office', {
     onReady: vi.fn().mockResolvedValue({ host: 'Excel' }),
@@ -112,6 +123,7 @@ function setupExcel() {
         settings: {
           get: vi.fn((key: string) => values.get(key)),
           set: vi.fn((key: string, value: string) => values.set(key, value)),
+          remove: vi.fn((key: string) => values.delete(key)),
           saveAsync,
         },
       },
@@ -121,6 +133,8 @@ function setupExcel() {
 }
 
 beforeEach(() => {
+  sync.mockReset().mockResolvedValue(undefined)
+  saveAsync.mockReset().mockImplementation(callback => callback({ status: 'succeeded' }))
   values.clear()
   shapes = []
   activeShape = shape({ isNullObject: true })
@@ -206,15 +220,13 @@ it('reloads updated source after inserting, deselecting, and reselecting an imag
 })
 
 it('inserts a named PNG over the selected cell and stores its payload', async () => {
-  const payload = await insertDiagramWithPayload(
-    '<svg/>',
-    'flowchart LR\nA-->B',
-    'forest',
-    'medium',
-    { base64: 'png', width: 600, height: 400 },
-    {},
-    DEFAULT_DIAGRAM_SETTINGS,
-  )
+  const payload = await insertDiagramWithPayload({
+    svg: '<svg/>',
+    draft: {
+      source: 'flowchart LR\nA-->B', theme: 'forest', size: 'medium', settings: DEFAULT_DIAGRAM_SETTINGS,
+    },
+    raster: { base64: 'png', width: 600, height: 400 },
+  })
 
   expect(payload.id).toBe('new-diagram')
   expect(inserted).toHaveLength(1)
@@ -264,16 +276,15 @@ it('replaces the stored shape while preserving position and displayed width', as
   shapes = [original]
   values.set(getDocumentSettingKey(payload.id), JSON.stringify(payload))
 
-  await expect(updateDiagramById(
-    '<svg/>',
-    payload,
-    'flowchart LR\nA-->C',
-    'dark',
-    'large',
-    false,
-    { base64: 'updated', width: 800, height: 400 },
-    DEFAULT_DIAGRAM_SETTINGS,
-  )).resolves.toBe('png')
+  await expect(updateDiagramById({
+    svg: '<svg/>',
+    existing: payload,
+    draft: {
+      source: 'flowchart LR\nA-->C', theme: 'dark', size: 'large', settings: DEFAULT_DIAGRAM_SETTINGS,
+    },
+    applySize: false,
+    raster: { base64: 'updated', width: 800, height: 400 },
+  })).resolves.toBe('png')
 
   expect(original.delete).toHaveBeenCalledOnce()
   expect(inserted[0]).toMatchObject({
@@ -289,12 +300,140 @@ it('replaces the stored shape while preserving position and displayed width', as
 
 it('rejects missing and concurrently changed diagrams', async () => {
   const payload = createDiagramPayload('flowchart LR\nA-->B', 'png')
-  await expect(updateDiagramById('<svg/>', payload, payload.source)).rejects.toThrow(
+  const request: UpdateDiagramRequest = {
+    svg: '<svg/>', existing: payload, draft: { ...payload, settings: DEFAULT_DIAGRAM_SETTINGS },
+  }
+  await expect(updateDiagramById(request)).rejects.toThrow(
     'deleted or can no longer be found',
   )
 
   values.set(getDocumentSettingKey(payload.id), JSON.stringify({ ...payload, source: 'changed' }))
-  await expect(updateDiagramById('<svg/>', payload, payload.source)).rejects.toThrow(
+  await expect(updateDiagramById(request)).rejects.toThrow(
     'changed in another editor',
   )
+})
+
+function replacementFixture() {
+  const payload = createDiagramPayload('flowchart LR\nOriginal-->Diagram', 'png')
+  const original = shape({ name: getExcelShapeName(payload.id) })
+  shapes = [original]
+  const serialized = JSON.stringify(payload)
+  values.set(getDocumentSettingKey(payload.id), serialized)
+  const request: UpdateDiagramRequest = {
+    svg: '<svg/>', existing: payload,
+    draft: { ...payload, source: 'flowchart LR\nUpdated-->Diagram', settings: DEFAULT_DIAGRAM_SETTINGS },
+    raster: { base64: 'png', width: 600, height: 400 },
+  }
+  return { payload, original, serialized, request }
+}
+
+it('retains the original image until replacement insertion and metadata saving succeed', async () => {
+  const { original, request } = replacementFixture()
+  saveAsync.mockImplementationOnce(callback => {
+    expect(original.delete).not.toHaveBeenCalled()
+    expect(shapes).toContain(original)
+    expect(inserted).toHaveLength(1)
+    expect(inserted[0].name).toMatch(/^Mermaid pending /)
+    callback({ status: 'succeeded' })
+  })
+  await updateDiagramById(request)
+  expect(shapes).toEqual([inserted[0]])
+})
+
+it('does not mutate the workbook when image preparation fails', async () => {
+  const { original, request } = replacementFixture()
+  vi.mocked(rasterizeSvg).mockRejectedValueOnce(new Error('Image preparation failed'))
+  await expect(updateDiagramById({ ...request, raster: undefined })).rejects.toThrow('Image preparation failed')
+  expect(shapes).toEqual([original])
+  expect(inserted).toHaveLength(0)
+  expect(saveAsync).not.toHaveBeenCalled()
+})
+
+it('does not overwrite an external edit made during image preparation', async () => {
+  const { original, request, payload } = replacementFixture()
+  const external = JSON.stringify({ ...payload, source: 'flowchart LR\nExternal-->Edit' })
+  vi.mocked(embedPayloadInPng).mockImplementationOnce(() => {
+    values.set(getDocumentSettingKey(payload.id), external)
+    return 'embedded-png'
+  })
+  await expect(updateDiagramById(request)).rejects.toThrow('changed in another editor')
+  expect(shapes).toEqual([original])
+  expect(values.get(getDocumentSettingKey(payload.id))).toBe(external)
+  expect(saveAsync).not.toHaveBeenCalled()
+})
+
+it('keeps the original and old metadata when replacement insertion fails', async () => {
+  const { original, serialized, request, payload } = replacementFixture()
+  // Workbook lookup, shape lookup, worksheet ID, then staged image creation.
+  sync.mockResolvedValueOnce().mockResolvedValueOnce().mockResolvedValueOnce()
+    .mockRejectedValueOnce(new Error('Image insertion failed'))
+  await expect(updateDiagramById(request)).rejects.toThrow('Image insertion failed')
+  expect(original.delete).not.toHaveBeenCalled()
+  expect(shapes).toEqual([original])
+  expect(values.get(getDocumentSettingKey(payload.id))).toBe(serialized)
+  expect(saveAsync).not.toHaveBeenCalled()
+})
+
+it('removes the staged image and restores metadata when saving fails', async () => {
+  const { original, serialized, request, payload } = replacementFixture()
+  saveAsync.mockImplementationOnce(callback =>
+    callback({ status: 'failed', error: { message: 'Settings save failed' } }))
+  await expect(updateDiagramById(request)).rejects.toThrow('Settings save failed')
+  expect(original.delete).not.toHaveBeenCalled()
+  expect(shapes).toEqual([original])
+  expect(original.name).toBe(getExcelShapeName(payload.id))
+  expect(values.get(getDocumentSettingKey(payload.id))).toBe(serialized)
+  expect(saveAsync).toHaveBeenCalledTimes(2)
+})
+
+it('restores an absent settings entry when an update of embedded-only metadata fails', async () => {
+  const { original, request, payload } = replacementFixture()
+  values.delete(getDocumentSettingKey(payload.id))
+  saveAsync.mockImplementationOnce(callback =>
+    callback({ status: 'failed', error: { message: 'Settings save failed' } }))
+  await expect(updateDiagramById(request)).rejects.toThrow('Settings save failed')
+  expect(shapes).toEqual([original])
+  expect(values.has(getDocumentSettingKey(payload.id))).toBe(false)
+})
+
+it('restores the original name and source after a partially applied name swap', async () => {
+  const { original, serialized, request, payload } = replacementFixture()
+  sync.mockResolvedValueOnce().mockResolvedValueOnce().mockResolvedValueOnce()
+    .mockResolvedValueOnce().mockResolvedValueOnce()
+    .mockRejectedValueOnce(new Error('Name swap failed'))
+  await expect(updateDiagramById(request)).rejects.toThrow('Name swap failed')
+  expect(shapes).toEqual([original])
+  expect(original.name).toBe(getExcelShapeName(payload.id))
+  expect(values.get(getDocumentSettingKey(payload.id))).toBe(serialized)
+})
+
+it('rolls back when deletion fails before removing the original', async () => {
+  const { original, serialized, request, payload } = replacementFixture()
+  original.delete.mockImplementationOnce(() => { throw new Error('Delete failed') })
+  await expect(updateDiagramById(request)).rejects.toThrow('Delete failed')
+  expect(shapes).toEqual([original])
+  expect(original.name).toBe(getExcelShapeName(payload.id))
+  expect(values.get(getDocumentSettingKey(payload.id))).toBe(serialized)
+})
+
+it('confirms committed state if the final sync rejects after deleting the original', async () => {
+  const { request, payload } = replacementFixture()
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  sync.mockResolvedValueOnce().mockResolvedValueOnce().mockResolvedValueOnce()
+    .mockResolvedValueOnce().mockResolvedValueOnce().mockResolvedValueOnce()
+    .mockRejectedValueOnce(new Error('Final sync acknowledgement lost'))
+  await expect(updateDiagramById(request)).resolves.toBe('png')
+  expect(shapes).toEqual([inserted[0]])
+  expect(inserted[0].name).toBe(getExcelShapeName(payload.id))
+  expect(JSON.parse(values.get(getDocumentSettingKey(payload.id))!).source).toBe(request.draft.source)
+  expect(warning).toHaveBeenCalledOnce()
+})
+
+it('surfaces incomplete recovery without deleting the original image', async () => {
+  const { original, request } = replacementFixture()
+  saveAsync.mockImplementation(callback =>
+    callback({ status: 'failed', error: { message: 'Settings unavailable' } }))
+  await expect(updateDiagramById(request)).rejects.toThrow('fully recover')
+  expect(shapes).toEqual([original])
+  expect(original.delete).not.toHaveBeenCalled()
 })

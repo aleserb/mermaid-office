@@ -145,9 +145,9 @@ export function PaneApp() {
         {settingsError && (
           <MessageBar intent="error"><MessageBarBody>{settingsError}</MessageBarBody></MessageBar>
         )}
-        {editor.wordError && (
+        {editor.hostError && (
           <MessageBar intent="error">
-            <MessageBarBody>{editor.wordError}</MessageBarBody>
+            <MessageBarBody>{editor.hostError}</MessageBarBody>
           </MessageBar>
         )}
         {editor.diagnostic && (

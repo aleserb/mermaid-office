@@ -22,14 +22,14 @@ vi.mock('../word/insertDiagram', () => ({
 vi.mock('../word/selection', () => ({
   getSelectedDiagram: vi.fn().mockResolvedValue(null),
   watchSelectedDiagram: vi.fn((onSelected) => {
-    onSelected(null)
+    onSelected(null, 'initial')
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   }),
 }))
 vi.mock('../excel/diagram', () => ({
   getSelectedDiagram: vi.fn().mockResolvedValue(null),
   watchSelectedDiagram: vi.fn((onSelected) => {
-    onSelected(null)
+    onSelected(null, 'initial')
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   }),
   insertDiagramWithPayload: vi.fn(),
@@ -145,7 +145,7 @@ it('shows a header Update button for a large diagram and writes only on click', 
   const selected = createDiagramPayload(`flowchart LR\n${'A-->B\n'.repeat(50)}`, 'png', 'forest')
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   vi.mocked(watchSelectedDiagram).mockImplementationOnce(onSelected => {
-    onSelected(selected)
+    onSelected(selected, 'initial')
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   })
 
@@ -179,7 +179,7 @@ it('uses Excel host text and routes updates through the Excel adapter', async ()
     context: { document: {}, host: 'Excel' },
   })
   vi.mocked(excelDiagram.watchSelectedDiagram).mockImplementationOnce(onSelected => {
-    onSelected(selected)
+    onSelected(selected, 'initial')
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   })
   vi.mocked(excelDiagram.updateDiagramById).mockResolvedValueOnce('png')
@@ -201,7 +201,7 @@ it('closes stale settings when the selected diagram changes and opens the new va
   const second = createDiagramPayload('flowchart TD\nC-->D', 'png', 'neutral')
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   vi.mocked(watchSelectedDiagram).mockImplementationOnce(onSelected => {
-    onSelected(first)
+    onSelected(first, 'initial')
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   })
   const user = userEvent.setup()
@@ -211,8 +211,8 @@ it('closes stale settings when the selected diagram changes and opens the new va
   await user.selectOptions(await screen.findByRole('combobox', { name: 'Diagram theme' }), 'dark')
   act(() => {
     const [onSelected, , options] = vi.mocked(watchSelectedDiagram).mock.calls[0]
-    options?.onSelectionChange?.()
-    onSelected(second)
+    options?.onSelectionChange?.('office-event')
+    onSelected(second, 'office-event')
   })
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(updateDiagramById).not.toHaveBeenCalled()
@@ -251,7 +251,7 @@ it('uses the selected diagram header for conditional settings', async () => {
   )
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   vi.mocked(watchSelectedDiagram).mockImplementationOnce(onSelected => {
-    onSelected(selected)
+    onSelected(selected, 'initial')
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   })
   const user = userEvent.setup()
@@ -271,7 +271,7 @@ it('hides Insert and saved-diagram instructions until the diagram is deselected'
   const existing = createDiagramPayload('flowchart LR\nA-->B', 'png', 'forest')
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   vi.mocked(watchSelectedDiagram).mockImplementationOnce((onSelected) => {
-    onSelected(existing)
+    onSelected(existing, 'initial')
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   })
 
@@ -288,8 +288,8 @@ it('hides Insert and saved-diagram instructions until the diagram is deselected'
 
   act(() => {
     const [onSelected, , options] = vi.mocked(watchSelectedDiagram).mock.calls[0]
-    options?.onSelectionChange?.()
-    onSelected(null)
+    options?.onSelectionChange?.('office-event')
+    onSelected(null, 'office-event')
   })
   expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Insert' }))
     .toBeInTheDocument()
@@ -306,7 +306,7 @@ it('replaces settings with the pending-edits confirmation instead of stacking mo
   await user.selectOptions(screen.getByRole('combobox', { name: 'Diagram theme' }), 'dark')
   act(() => {
     const [onSelected] = vi.mocked(watchSelectedDiagram).mock.calls[0]
-    onSelected(createDiagramPayload('flowchart LR\nX-->Y', 'png', 'forest'))
+    onSelected(createDiagramPayload('flowchart LR\nX-->Y', 'png', 'forest'), 'office-event')
   })
   expect(screen.getAllByRole('dialog')).toHaveLength(1)
   expect(screen.getByRole('dialog', { name: 'Discard pending edits?' })).toBeInTheDocument()
@@ -326,7 +326,7 @@ it('disables settings while loading the selected diagram', async () => {
   await user.click(screen.getByRole('button', { name: 'Diagram settings' }))
   act(() => {
     const [, , options] = vi.mocked(watchSelectedDiagram).mock.calls[0]
-    options?.onSelectionChange?.()
+    options?.onSelectionChange?.('office-event')
   })
   expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
   await user.click(screen.getByRole('button', { name: 'Cancel' }))

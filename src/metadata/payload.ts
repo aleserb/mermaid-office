@@ -1,4 +1,4 @@
-import { isDiagramSettings, type DiagramSettings } from './diagramSettings'
+import { isDiagramSettings, sameDiagramSettings, type DiagramSettings } from './diagramSettings'
 
 export const DIAGRAM_SCHEMA_VERSION = 1
 export const MERMAID_RENDERER_VERSION = '11.17.2'
@@ -48,6 +48,15 @@ export interface DiagramPayload {
   format: DiagramFormat
   rendererVersion: string
   settings?: DiagramSettings
+}
+
+export function sameDiagramPayload(left: DiagramPayload, right: DiagramPayload): boolean {
+  return left.id === right.id
+    && left.source === right.source
+    && left.theme === right.theme
+    && left.size === right.size
+    && left.format === right.format
+    && sameDiagramSettings(left.settings, right.settings)
 }
 
 export function createDiagramPayload(
@@ -138,7 +147,7 @@ function isDiagramPayload(value: unknown): value is DiagramPayload {
     (payload.size === undefined ||
       DIAGRAM_SIZES.includes(payload.size as DiagramSize)) &&
     (payload.settings === undefined || isDiagramSettings(payload.settings)) &&
-    ['svg', 'png'].includes(String(payload.format)) &&
+    (payload.format === 'svg' || payload.format === 'png') &&
     typeof payload.rendererVersion === 'string'
   )
 }

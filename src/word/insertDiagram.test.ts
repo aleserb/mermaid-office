@@ -1,16 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  fitDiagram,
-  findVisiblePixelBounds,
   insertDiagram,
   insertDiagramWithPayload,
   insertPngObject,
-  normalizeSvgDimensions,
   updateDiagram,
   updateDiagramById,
 } from './insertDiagram'
 import { createDiagramPayload, getContentControlTag, getDocumentSettingKey } from '../metadata/payload'
 import { DEFAULT_DIAGRAM_SETTINGS } from '../metadata/diagramSettings'
+import type { DiagramDraft } from '../office/diagramRequests'
 import { embedPayloadInPng, getPngDimensions, readPayloadFromPng, setPngPhysicalWidth } from '../metadata/pngMetadata'
 
 vi.mock('../metadata/pngMetadata', async (importOriginal) => ({
@@ -20,6 +18,16 @@ vi.mock('../metadata/pngMetadata', async (importOriginal) => ({
 
 const transparentPixel =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+XwX9WQAAAABJRU5ErkJggg=='
+
+function diagramDraft(overrides: Partial<DiagramDraft> = {}): DiagramDraft {
+  return {
+    source: 'flowchart LR\nA',
+    theme: 'default',
+    size: 'medium',
+    ...overrides,
+    settings: overrides.settings ?? DEFAULT_DIAGRAM_SETTINGS,
+  }
+}
 
 afterEach(() => vi.restoreAllMocks())
 beforeEach(() => vi.mocked(getPngDimensions).mockReturnValue({ width: 2048, height: 2048 }))
@@ -119,8 +127,11 @@ describe('lightweight native PNG insertion', () => {
       insertInlinePictureFromBase64: insertNative,
     })
     const source = 'flowchart LR\nNew --> Content'
-    await updateDiagramById('<svg/>', mock.existing, source, undefined, undefined, false, {
-      base64: transparentPixel, width: frame[0], height: frame[1],
+    await updateDiagramById({
+      svg: '<svg/>',
+      existing: mock.existing,
+      draft: diagramDraft({ ...mock.existing, source }),
+      raster: { base64: transparentPixel, width: frame[0], height: frame[1] },
     })
     expect(insertNative).toHaveBeenCalledTimes(native ? 1 : 0)
     expect(mock.insertPicture).toHaveBeenCalledTimes(native ? 0 : 1)
@@ -131,7 +142,9 @@ describe('lightweight native PNG insertion', () => {
       })
       expect(readPayloadFromPng(insertNative.mock.calls[0][0])).toMatchObject({ id: mock.existing.id, source })
       expect(insertNative.mock.calls[0][0]).toBe(
-        setPngPhysicalWidth(embedPayloadInPng(transparentPixel, { ...mock.existing, source }), frame[0]),
+        setPngPhysicalWidth(embedPayloadInPng(transparentPixel, {
+          ...mock.existing, source, settings: DEFAULT_DIAGRAM_SETTINGS,
+        }), frame[0]),
       )
     }
     expect(mock.control.delete).not.toHaveBeenCalled()
@@ -191,8 +204,11 @@ describe('lightweight native PNG insertion', () => {
       insertOoxml: mock.insertPicture,
       insertInlinePictureFromBase64: insertNative,
     })
-    await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nNew', undefined, undefined, false, {
-      base64: transparentPixel, width: 100, height: 50,
+    await expect(updateDiagramById({
+      svg: '<svg/>',
+      existing: mock.existing,
+      draft: diagramDraft({ ...mock.existing, source: 'flowchart LR\nNew' }),
+      raster: { base64: transparentPixel, width: 100, height: 50 },
     })).rejects.toThrow('Native insertion failed')
     expect(mock.insertPicture).not.toHaveBeenCalled()
     expect(mock.settingsAdd).not.toHaveBeenCalled()
@@ -202,50 +218,6 @@ describe('lightweight native PNG insertion', () => {
 
 describe('Word diagram insertion', () => {
   afterEach(() => vi.unstubAllGlobals())
-  describe('fitDiagram', () => {
-    it('keeps small diagrams at their natural size', () => {
-      expect(fitDiagram(200, 100)).toEqual({ width: 200, height: 100 })
-    })
-
-    it('scales large diagrams without changing their aspect ratio', () => {
-      expect(fitDiagram(1000, 500)).toEqual({ width: 500, height: 250 })
-      expect(fitDiagram(500, 1300)).toEqual({ width: 250, height: 650 })
-    })
-
-    it('can upscale a diagram to a selected width preset', () => {
-      expect(fitDiagram(200, 100, 400, 650, true)).toEqual({
-        width: 400,
-        height: 200,
-      })
-    })
-  })
-
-  it('finds the visible alpha bounds for PNG cropping', () => {
-    const pixels = new Uint8ClampedArray(4 * 4 * 3)
-    pixels[(1 * 4 + 1) * 4 + 3] = 255
-    pixels[(2 * 4 + 3) * 4 + 3] = 128
-
-    expect(findVisiblePixelBounds(pixels, 4, 3)).toEqual({
-      left: 1,
-      top: 1,
-      width: 3,
-      height: 2,
-    })
-    expect(findVisiblePixelBounds(new Uint8ClampedArray(16), 2, 2)).toBeNull()
-  })
-
-  it('replaces responsive Mermaid dimensions with explicit SVG bounds', () => {
-    const result = normalizeSvgDimensions(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="100%" style="max-width: 262.5px;" viewBox="0 0 262.5 64.5"></svg>',
-    )
-
-    expect(result.width).toBe(262.5)
-    expect(result.height).toBe(64.5)
-    expect(result.svg).toContain('width="262.5"')
-    expect(result.svg).toContain('height="64.5"')
-    expect(result.svg).not.toContain('max-width')
-  })
-
   it.each(['outside', 'expanded', 'empty', 'unrelated'])(
     'inserts independently of an %s enclosing control',
     async (enclosingKind) => {
@@ -467,7 +439,7 @@ describe('Word diagram insertion', () => {
       const raster = { base64: transparentPixel, width: 100, height: 50 }
       const settings = { ...DEFAULT_DIAGRAM_SETTINGS, look: 'handDrawn' as const, imageQuality: 'high' as const }
       const result = insert === insertDiagramWithPayload
-        ? await insertDiagramWithPayload('<svg/>', 'flowchart LR\nA', undefined, undefined, raster, {}, settings)
+        ? await insertDiagramWithPayload({ svg: '<svg/>', draft: diagramDraft({ settings }), raster })
         : await insertDiagram('<svg/>', 'flowchart LR\nA', undefined, undefined, raster, settings)
       const picture = readPictureOoxml(insertPicture.mock.calls[0][0])
       const payload = readPayloadFromPng(picture.base64)
@@ -511,11 +483,12 @@ describe('Word diagram insertion', () => {
       InsertLocation: { replace: 'Replace' },
       ContentControlAppearance: { hidden: 'Hidden' },
     })
-    const result = insertDiagramWithPayload(
-      '<svg/>', 'flowchart LR\nA', undefined, undefined,
-      { base64: transparentPixel, width: 100, height: 50 },
-      { requireEmptySelection: true },
-    )
+    const result = insertDiagramWithPayload({
+      svg: '<svg/>',
+      draft: diagramDraft(),
+      raster: { base64: transparentPixel, width: 100, height: 50 },
+      requireEmptySelection: true,
+    })
     if (blocked) {
       await expect(result).rejects.toThrow('without selecting text or a picture')
       expect(enclosing.load).not.toHaveBeenCalled()
@@ -634,11 +607,19 @@ describe('Word diagram updates by saved ID', () => {
     vi.stubGlobal('Image', VectorImage)
     vi.stubGlobal('URL', { createObjectURL: () => 'blob:diagram', revokeObjectURL: vi.fn() })
 
-    await update(
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>',
-      mock.existing, 'flowchart LR\nNew', undefined, 'small', applySize,
-      undefined, { ...DEFAULT_DIAGRAM_SETTINGS, imageQuality: quality },
-    )
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"/>'
+    const draft = diagramDraft({
+      ...mock.existing, source: 'flowchart LR\nNew', size: 'small',
+      settings: { ...DEFAULT_DIAGRAM_SETTINGS, imageQuality: quality },
+    })
+    if (update === updateDiagramById) {
+      await updateDiagramById({ svg, existing: mock.existing, draft, applySize })
+    } else {
+      await updateDiagram(
+        svg, mock.existing, draft.source, draft.theme, draft.size, applySize,
+        undefined, draft.settings,
+      )
+    }
 
     const width = applySize ? 216 : mock.picture.width
     const pixelWidth = width * (96 / 72) * (quality === 'high' ? 8 : 2)
@@ -657,10 +638,11 @@ describe('Word diagram updates by saved ID', () => {
   it.each([false, true])('targets the saved ID without touching selection (applySize=%s)', async (applySize) => {
     const mock = mockSavedDiagram()
     const source = 'flowchart LR\nB --> C'
-    const result = await updateDiagramById(
-      '<svg/>', mock.existing, source, undefined, undefined, applySize, raster,
-    )
-    const payload = { ...mock.existing, source }
+    const result = await updateDiagramById({
+      svg: '<svg/>', existing: mock.existing,
+      draft: diagramDraft({ ...mock.existing, source }), applySize, raster,
+    })
+    const payload = { ...mock.existing, source, settings: DEFAULT_DIAGRAM_SETTINGS }
     const width = applySize ? 396 : 287
     expect(result).toBe('png')
     expect(mock.getByTag).toHaveBeenCalledWith(getContentControlTag(mock.existing.id))
@@ -690,8 +672,10 @@ describe('Word diagram updates by saved ID', () => {
     ['missing picture', 'exactly one picture'],
     ['ambiguous picture', 'exactly one picture'],
     ['changed source', 'changed in another editor'],
+    ['changed ID', 'changed in another editor'],
     ['changed theme', 'changed in another editor'],
     ['changed size', 'changed in another editor'],
+    ['changed format', 'changed in another editor'],
     ['changed settings', 'changed in another editor'],
     ['invalid metadata', 'not valid JSON'],
   ])('rejects %s without writes', async (scenario, message) => {
@@ -701,13 +685,18 @@ describe('Word diagram updates by saved ID', () => {
     if (scenario === 'missing picture') mock.pictures.items = []
     if (scenario === 'ambiguous picture') mock.pictures.items.push(mock.picture)
     if (scenario === 'changed source') mock.setting.value = JSON.stringify({ ...mock.existing, source: 'flowchart LR\nZ' })
+    if (scenario === 'changed ID') mock.setting.value = JSON.stringify({ ...mock.existing, id: 'another-diagram' })
     if (scenario === 'changed theme') mock.setting.value = JSON.stringify({ ...mock.existing, theme: 'dark' })
     if (scenario === 'changed size') mock.setting.value = JSON.stringify({ ...mock.existing, size: 'small' })
+    if (scenario === 'changed format') mock.setting.value = JSON.stringify({ ...mock.existing, format: 'svg' })
     if (scenario === 'changed settings') mock.setting.value = JSON.stringify({
       ...mock.existing, settings: { ...DEFAULT_DIAGRAM_SETTINGS, fontSize: 24 },
     })
     if (scenario === 'invalid metadata') mock.setting.value = '{'
-    await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster))
+    await expect(updateDiagramById({
+      svg: '<svg/>', existing: mock.existing,
+      draft: diagramDraft({ ...mock.existing, source: 'flowchart LR\nC' }), raster,
+    }))
       .rejects.toThrow(message)
     expect(mock.insertPicture).not.toHaveBeenCalled()
     expect(mock.settingsAdd).not.toHaveBeenCalled()
@@ -718,13 +707,31 @@ describe('Word diagram updates by saved ID', () => {
     expect(mock.select).not.toHaveBeenCalled()
   })
 
+  it('accepts explicit defaults in stored metadata when the existing payload has legacy settings', async () => {
+    const mock = mockSavedDiagram()
+    mock.setting.value = JSON.stringify({ ...mock.existing, settings: DEFAULT_DIAGRAM_SETTINGS })
+    await updateDiagramById({
+      svg: '<svg/>', existing: mock.existing,
+      draft: diagramDraft({ ...mock.existing, source: 'flowchart LR\nC' }), raster,
+    })
+    expect(mock.insertPicture).toHaveBeenCalledOnce()
+    expect(mock.settingsAdd).toHaveBeenCalledOnce()
+  })
+
   it('updates theme and size metadata and restores missing document settings', async () => {
     const mock = mockSavedDiagram()
     mock.setting.isNullObject = true
-    await updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', 'dark', 'small', true, raster)
+    await updateDiagramById({
+      svg: '<svg/>', existing: mock.existing,
+      draft: diagramDraft({ source: 'flowchart LR\nC', theme: 'dark', size: 'small' }),
+      applySize: true, raster,
+    })
     const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
     const payload = readPayloadFromPng(replacement.base64)
-    expect(payload).toEqual({ ...mock.existing, source: 'flowchart LR\nC', theme: 'dark', size: 'small' })
+    expect(payload).toEqual({
+      ...mock.existing, source: 'flowchart LR\nC', theme: 'dark', size: 'small',
+      settings: DEFAULT_DIAGRAM_SETTINGS,
+    })
     expect(replacement.width).toBe(216)
     expect(mock.settingsAdd).toHaveBeenCalledWith(getDocumentSettingKey(mock.existing.id), JSON.stringify(payload))
   })
@@ -733,7 +740,11 @@ describe('Word diagram updates by saved ID', () => {
     const mock = mockSavedDiagram()
     mock.picture.altTextTitle = ''
     mock.picture.altTextDescription = ''
-    await updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', 'dark', 'small', false, raster)
+    await updateDiagramById({
+      svg: '<svg/>', existing: mock.existing,
+      draft: diagramDraft({ source: 'flowchart LR\nC', theme: 'dark', size: 'small' }),
+      applySize: false, raster,
+    })
     const replacement = readPictureOoxml(mock.insertPicture.mock.calls[0][0])
     expect(replacement).toMatchObject({
       width: 287, height: 287 * 0.6, altTextTitle: '', altTextDescription: '',
@@ -751,7 +762,10 @@ describe('Word diagram updates by saved ID', () => {
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('Word could not replace the picture'))
-    await expect(updateDiagramById('<svg/>', mock.existing, 'flowchart LR\nC', undefined, undefined, false, raster))
+    await expect(updateDiagramById({
+      svg: '<svg/>', existing: mock.existing,
+      draft: diagramDraft({ ...mock.existing, source: 'flowchart LR\nC' }), raster,
+    }))
       .rejects.toThrow('Word could not replace the picture')
     expect(mock.control.delete).not.toHaveBeenCalled()
     expect(mock.select).not.toHaveBeenCalled()

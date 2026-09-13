@@ -7,6 +7,7 @@ import { renderMermaid } from '../mermaid/render'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
 import { getSelectedDiagram, watchSelectedDiagram } from '../word/selection'
 import { LIVE_UPDATE_DELAY, usePaneEditor } from './usePaneEditor'
+import { watchDiagramSelection, type SelectionOrigin, type SelectionReceiver } from '../office/selectionWatcher'
 
 vi.mock('../mermaid/render', async importOriginal => ({
   ...await importOriginal<typeof import('../mermaid/render')>(),
@@ -21,18 +22,21 @@ vi.mock('../word/selection', () => ({ getSelectedDiagram: vi.fn(), watchSelected
 const existing = createDiagramPayload('flowchart LR\nA-->B', 'png', 'forest')
 const large = createDiagramPayload(`flowchart LR\n${'A-->B\n'.repeat(50)}`, 'png', 'forest')
 let selected: typeof existing | null = null
-let receiveSelection: (payload: typeof existing | null) => void
-let notifySelection: ((fromDocument?: boolean) => void) | undefined
+let receiveSelection: SelectionReceiver
+let notifySelection: ((origin: SelectionOrigin) => void) | undefined
 let isPaused: (() => boolean) | undefined
+let queuedOrigin: SelectionOrigin
 const stopWatching = vi.fn()
 const refreshSelection = vi.fn()
 
-function selectInWord(payload: typeof existing | null, fromDocument = true) {
+function selectInWord(payload: typeof existing | null, origin: SelectionOrigin = 'office-event') {
   selected = payload
-  vi.mocked(document.hasFocus).mockReturnValue(!fromDocument)
-  notifySelection?.()
-  vi.mocked(document.hasFocus).mockReturnValue(true)
-  if (!isPaused?.()) receiveSelection(payload)
+  queuedOrigin = origin
+  if (origin === 'office-event') notifySelection?.(origin)
+  if (!isPaused?.()) {
+    receiveSelection(payload, origin)
+    queuedOrigin = 'refresh'
+  }
 }
 
 beforeEach(() => {
@@ -40,18 +44,24 @@ beforeEach(() => {
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   vi.mocked(getSelectedDiagram).mockResolvedValue(null)
+  queuedOrigin = 'refresh'
   vi.mocked(watchSelectedDiagram).mockImplementation((onSelected, _onError, options) => {
     receiveSelection = onSelected
     notifySelection = options?.onSelectionChange
     isPaused = options?.isPaused
-    refreshSelection.mockImplementation(() => { if (!isPaused?.()) onSelected(selected) })
-    void getSelectedDiagram().then(onSelected)
+    refreshSelection.mockImplementation(() => {
+      if (!isPaused?.()) {
+        onSelected(selected, queuedOrigin)
+        queuedOrigin = 'refresh'
+      }
+    })
+    void getSelectedDiagram().then(payload => onSelected(payload, 'initial'))
     return Object.assign(stopWatching, { refresh: refreshSelection })
   })
   vi.mocked(renderMermaid).mockImplementation(async (source) => `<svg>${source}</svg>`)
   vi.mocked(updateDiagramById).mockResolvedValue('png')
-  vi.mocked(insertDiagramWithPayload).mockImplementation(async (_svg, source, theme, size, _raster, _options, settings) =>
-    createDiagramPayload(source, 'png', theme, size, settings))
+  vi.mocked(insertDiagramWithPayload).mockImplementation(async ({ draft }) =>
+    createDiagramPayload(draft.source, 'png', draft.theme, draft.size, draft.settings))
 })
 
 afterEach(() => {
@@ -75,7 +85,100 @@ async function renderPending() {
   await act(async () => { await vi.advanceTimersByTimeAsync(LIVE_UPDATE_DELAY) })
 }
 
+function useRealSelectionWatcher() {
+  let officeSelectionChanged!: () => void
+  vi.stubGlobal('Office', {
+    onReady: vi.fn().mockResolvedValue({}),
+    context: {
+      document: {
+        addHandlerAsync: (_event: string, handler: () => void, callback: (result: { status: string }) => void) => {
+          officeSelectionChanged = handler
+          callback({ status: 'succeeded' })
+        },
+        removeHandlerAsync: vi.fn(),
+      },
+    },
+    EventType: { DocumentSelectionChanged: 'selection-change' },
+    AsyncResultStatus: { Failed: 'failed' },
+  })
+  // Use the real watcher with the Word adapter's mocked writer so these tests
+  // exercise the editor/watcher boundary independently of either host's reader.
+  vi.mocked(watchSelectedDiagram).mockImplementation((onSelected, onError, options) =>
+    watchDiagramSelection(() => Promise.resolve(selected), onSelected, onError, { ...options, pollIntervalMs: 500 }))
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  return () => officeSelectionChanged()
+}
+
 describe('code-only pane workflow', () => {
+  it.each(['pane-focus', 'office-event'] as const)(
+    'does not deduplicate a real %s deselection against a rejected focused null poll', async (origin) => {
+      const officeSelectionChanged = useRealSelectionWatcher()
+      const { result } = await openPane(existing)
+      const history = result.current.historyKey
+      selected = null
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+      expect(result.current.target?.id).toBe(existing.id)
+      expect(result.current.historyKey).toBe(history)
+      await act(async () => {
+        if (origin === 'pane-focus') window.dispatchEvent(new Event('focus'))
+        else officeSelectionChanged()
+      })
+      expect(document.hasFocus()).toBe(true)
+      expect(result.current.target).toBeNull()
+      expect(result.current.historyKey).toBe(history + 1)
+      expect(result.current.loadingSelection).toBe(false)
+    },
+  )
+
+  it.each(['pane-focus', 'office-event'] as const)(
+    'confirms dirty deselection on %s after rejecting a focused null poll', async (origin) => {
+      const officeSelectionChanged = useRealSelectionWatcher()
+      const { result } = await openPane(existing)
+      const history = result.current.historyKey
+      act(() => result.current.changeSource('flowchart LR\nUnsaved'))
+      selected = null
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+      expect(result.current.pending).toBeNull()
+      await act(async () => {
+        if (origin === 'pane-focus') window.dispatchEvent(new Event('focus'))
+        else officeSelectionChanged()
+      })
+      expect(result.current.pending).toEqual({ target: null })
+      expect(result.current.draft.source).toContain('Unsaved')
+      expect(result.current.historyKey).toBe(history)
+      await renderPending()
+      expect(updateDiagramById).not.toHaveBeenCalled()
+    },
+  )
+
+  it('preserves undo history and dismissed confirmation across unchanged polls and refreshes', async () => {
+    const officeSelectionChanged = useRealSelectionWatcher()
+    const { result } = await openPane(large)
+    const history = result.current.historyKey
+    act(() => result.current.changeSource(`${large.source}B-->C`))
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500) })
+    expect(result.current.historyKey).toBe(history)
+    expect(result.current.pending).toBeNull()
+    selected = null
+    await act(async () => officeSelectionChanged())
+    act(() => result.current.keepEditing())
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500) })
+    expect(result.current.pending).toBeNull()
+    expect(result.current.historyKey).toBe(history)
+    expect(result.current.draft.source).toBe(`${large.source}B-->C`)
+  })
+
+  it('honors a document poll after insertion even when the last accepted snapshot was empty', async () => {
+    useRealSelectionWatcher()
+    const { result } = await openPane()
+    await renderPending()
+    await act(async () => result.current.insert())
+    expect(result.current.target).not.toBeNull()
+    vi.mocked(document.hasFocus).mockReturnValue(false)
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+    expect(result.current.target).toBeNull()
+  })
+
   it.each(['PC', 'Mac'] as const)('keeps live updates enabled for large diagrams on desktop %s', async (platform) => {
     vi.stubGlobal('Office', {
       onReady: vi.fn().mockResolvedValue({}),
@@ -200,7 +303,9 @@ describe('code-only pane workflow', () => {
     expect(updateDiagramById).not.toHaveBeenCalled()
     await act(async () => result.current.endSettings(true))
     expect(updateDiagramById).toHaveBeenCalledExactlyOnceWith(
-      expect.any(String), large, large.source, 'dark', 'medium', false, undefined, DEFAULT_DIAGRAM_SETTINGS,
+      { svg: expect.any(String), existing: large,
+        draft: { source: large.source, theme: 'dark', size: 'medium', settings: DEFAULT_DIAGRAM_SETTINGS },
+        applySize: false },
     )
     expect(result.current.target?.id).toBe(other.id)
     expect(isPaused?.()).toBe(false)
@@ -236,7 +341,8 @@ describe('code-only pane workflow', () => {
     await act(async () => { result.current.endSettings(true) })
     await renderPending()
     expect(updateDiagramById).toHaveBeenCalledExactlyOnceWith(
-      expect.any(String), existing, existing.source, 'dark', 'medium', false, undefined, settings,
+      { svg: expect.any(String), existing,
+        draft: { source: existing.source, theme: 'dark', size: 'medium', settings }, applySize: false },
     )
     expect(result.current.target?.id).toBe(other.id)
     expect(result.current.settingsActive).toBe(false)
@@ -282,9 +388,9 @@ describe('code-only pane workflow', () => {
     act(() => result.current.changeSource('flowchart LR\nA-->C'))
     await renderPending()
     expect(updateDiagramById).toHaveBeenCalledWith(
-      expect.any(String), expect.objectContaining({ id: insertedId }),
-      'flowchart LR\nA-->C', 'redux-color', 'medium', false,
-      undefined, DEFAULT_DIAGRAM_SETTINGS,
+      { svg: expect.any(String), existing: expect.objectContaining({ id: insertedId }),
+        draft: { source: 'flowchart LR\nA-->C', theme: 'redux-color', size: 'medium', settings: DEFAULT_DIAGRAM_SETTINGS },
+        applySize: false },
     )
   })
 
@@ -298,8 +404,9 @@ describe('code-only pane workflow', () => {
     await renderPending()
     expect(updateDiagramById).toHaveBeenCalledOnce()
     expect(updateDiagramById).toHaveBeenCalledWith(
-      expect.any(String), existing, 'flowchart LR\nA-->D', 'forest', 'medium', false,
-      undefined, DEFAULT_DIAGRAM_SETTINGS,
+      { svg: expect.any(String), existing,
+        draft: { source: 'flowchart LR\nA-->D', theme: 'forest', size: 'medium', settings: DEFAULT_DIAGRAM_SETTINGS },
+        applySize: false },
     )
     expect(getSelectedDiagram).toHaveBeenCalledOnce()
   })
@@ -336,8 +443,9 @@ describe('code-only pane workflow', () => {
     act(() => result.current.changeTheme('redux-color'))
     await renderPending()
     expect(updateDiagramById).toHaveBeenCalledWith(
-      expect.any(String), existing, existing.source, 'redux-color', 'medium', false,
-      undefined, DEFAULT_DIAGRAM_SETTINGS,
+      { svg: expect.any(String), existing,
+        draft: { source: existing.source, theme: 'redux-color', size: 'medium', settings: DEFAULT_DIAGRAM_SETTINGS },
+        applySize: false },
     )
     expect(localStorage.getItem('mermaid-office:preferred-theme')).toBe('redux-color')
   })
@@ -350,9 +458,9 @@ describe('code-only pane workflow', () => {
     act(() => result.current.changeSource('flowchart LR\nUpdatedAgain'))
     await renderPending()
     expect(updateDiagramById).toHaveBeenLastCalledWith(
-      expect.any(String), expect.objectContaining({ format: 'png' }),
-      'flowchart LR\nUpdatedAgain', 'forest', 'medium', false,
-      undefined, DEFAULT_DIAGRAM_SETTINGS,
+      { svg: expect.any(String), existing: expect.objectContaining({ format: 'png' }),
+        draft: { source: 'flowchart LR\nUpdatedAgain', theme: 'forest', size: 'medium', settings: DEFAULT_DIAGRAM_SETTINGS },
+        applySize: false },
     )
   })
 
@@ -388,8 +496,9 @@ describe('code-only pane workflow', () => {
     await act(async () => { finish(inserted) })
     expect(result.current.draft.source).toContain('TypedDuringInsert')
     expect(updateDiagramById).toHaveBeenCalledWith(
-      expect.any(String), inserted, 'flowchart LR\nTypedDuringInsert', 'redux-color', 'medium', false,
-      undefined, DEFAULT_DIAGRAM_SETTINGS,
+      { svg: expect.any(String), existing: inserted,
+        draft: { source: 'flowchart LR\nTypedDuringInsert', theme: 'redux-color', size: 'medium', settings: DEFAULT_DIAGRAM_SETTINGS },
+        applySize: false },
     )
   })
 
@@ -402,7 +511,7 @@ describe('code-only pane workflow', () => {
     await renderPending()
     await renderPending()
     expect(updateDiagramById).toHaveBeenCalledOnce()
-    expect(result.current.wordError).toContain('deleted')
+    expect(result.current.hostError).toContain('deleted')
     expect(result.current.canRetry).toBe(true)
     act(() => result.current.retry())
     await act(async () => {})
@@ -462,7 +571,7 @@ describe('code-only pane workflow', () => {
     const { result } = await openPane(existing)
     const history = result.current.historyKey
     act(() => result.current.changeSource('flowchart LR\nKeepTheseEdits'))
-    act(() => selectInWord(existing, false))
+    act(() => selectInWord(existing, 'refresh'))
     expect(result.current.draft.source).toContain('KeepTheseEdits')
     expect(result.current.historyKey).toBe(history)
     expect(result.current.pending).toBeNull()
@@ -470,7 +579,7 @@ describe('code-only pane workflow', () => {
 
   it('does not reset the pane when its own replacement clears document selection', async () => {
     const { result } = await openPane(existing)
-    act(() => selectInWord(null, false))
+    act(() => selectInWord(null, 'refresh'))
     expect(result.current.target?.id).toBe(existing.id)
     expect(result.current.draft.source).toBe(existing.source)
   })
@@ -479,8 +588,7 @@ describe('code-only pane workflow', () => {
     const { result } = await openPane(existing)
     expect(document.hasFocus()).toBe(true)
     act(() => {
-      notifySelection?.(true)
-      receiveSelection(null)
+      receiveSelection(null, 'pane-focus')
     })
     expect(result.current.target).toBeNull()
     expect(result.current.loadingSelection).toBe(false)
@@ -490,8 +598,7 @@ describe('code-only pane workflow', () => {
     const { result } = await openPane(existing)
     act(() => result.current.changeSource('flowchart LR\nUnsaved'))
     act(() => {
-      notifySelection?.(true)
-      receiveSelection(null)
+      receiveSelection(null, 'pane-focus')
     })
     expect(result.current.target?.id).toBe(existing.id)
     expect(result.current.draft.source).toBe('flowchart LR\nUnsaved')
@@ -566,7 +673,7 @@ describe('code-only pane workflow', () => {
     vi.mocked(getSelectedDiagram).mockResolvedValue(existing)
     await act(async () => { await result.current.insert() })
     expect(insertDiagramWithPayload).not.toHaveBeenCalled()
-    expect(result.current.wordError).toContain('blank line')
+    expect(result.current.hostError).toContain('blank line')
   })
 
   it('cancels pending rendering when the pane is closed', async () => {
@@ -588,7 +695,9 @@ describe('code-only pane workflow', () => {
     await renderPending()
     expect(renderMermaid).toHaveBeenLastCalledWith(existing.source, existing.theme, settings)
     expect(updateDiagramById).toHaveBeenCalledExactlyOnceWith(
-      expect.any(String), existing, existing.source, existing.theme, existing.size, false, undefined, settings,
+      { svg: expect.any(String), existing,
+        draft: { source: existing.source, theme: existing.theme, size: existing.size, settings },
+        applySize: false },
     )
     expect(result.current.target?.settings).toEqual(settings)
     expect(result.current.dirty).toBe(false)
@@ -615,7 +724,9 @@ describe('code-only pane workflow', () => {
     await renderPending()
     await act(async () => { await result.current.insert() })
     expect(insertDiagramWithPayload).toHaveBeenCalledExactlyOnceWith(
-      expect.any(String), DEFAULT_DIAGRAM, 'neutral', 'medium', undefined, { requireEmptySelection: true }, settings,
+      { svg: expect.any(String),
+        draft: { source: DEFAULT_DIAGRAM, theme: 'neutral', size: 'medium', settings },
+        requireEmptySelection: true },
     )
     expect(result.current.target?.settings).toEqual(settings)
     act(() => result.current.changeSource('flowchart LR\nUpdated'))
@@ -656,8 +767,9 @@ describe('code-only pane workflow', () => {
     await act(async () => { finish('png') })
     expect(updateDiagramById).toHaveBeenCalledTimes(2)
     expect(updateDiagramById).toHaveBeenLastCalledWith(
-      expect.any(String), expect.objectContaining({ settings: first }),
-      existing.source, 'dark', 'medium', false, undefined, latest,
+      { svg: expect.any(String), existing: expect.objectContaining({ settings: first }),
+        draft: { source: existing.source, theme: 'dark', size: 'medium', settings: latest },
+        applySize: false },
     )
     expect(result.current.target?.settings).toEqual(latest)
     expect(result.current.draft.settings).toEqual(latest)

@@ -17,17 +17,36 @@ export function embedPayloadInPng(base64Png: string, payload: DiagramPayload): s
   const png = base64ToBytes(base64Png)
   assertPng(png)
 
-  const iendOffset = findChunkOffset(png, 'IEND')
-  if (iendOffset === -1) {
-    throw new Error('PNG does not contain an IEND chunk.')
+  const metadataChunk = createInternationalTextChunk(JSON.stringify(payload))
+  const chunks = [png.subarray(0, PNG_SIGNATURE.length)]
+  let offset = PNG_SIGNATURE.length
+  while (offset + 12 <= png.length) {
+    const length = readUint32(png, offset)
+    const type = textDecoder.decode(png.subarray(offset + 4, offset + 8))
+    const chunkEnd = offset + length + 12
+    if (chunkEnd > png.length) {
+      throw new Error('PNG contains a truncated chunk.')
+    }
+
+    if (type === 'IEND') {
+      chunks.push(metadataChunk, png.subarray(offset))
+      const result = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.length, 0))
+      let resultOffset = 0
+      for (const chunk of chunks) {
+        result.set(chunk, resultOffset)
+        resultOffset += chunk.length
+      }
+      return bytesToBase64(result)
+    }
+
+    const data = png.subarray(offset + 8, chunkEnd - 4)
+    if (!(['iTXt', 'tEXt', 'zTXt'].includes(type) && hasMetadataKeyword(data))) {
+      chunks.push(png.subarray(offset, chunkEnd))
+    }
+    offset = chunkEnd
   }
 
-  const metadataChunk = createInternationalTextChunk(JSON.stringify(payload))
-  const result = new Uint8Array(png.length + metadataChunk.length)
-  result.set(png.subarray(0, iendOffset), 0)
-  result.set(metadataChunk, iendOffset)
-  result.set(png.subarray(iendOffset), iendOffset + metadataChunk.length)
-  return bytesToBase64(result)
+  throw new Error('PNG does not contain an IEND chunk.')
 }
 
 export function setPngPhysicalWidth(base64Png: string, widthPoints: number): string {
@@ -72,6 +91,7 @@ export function readPayloadFromPng(base64Png: string): DiagramPayload | null {
   assertPng(png)
 
   let offset = PNG_SIGNATURE.length
+  let payload: DiagramPayload | null = null
   while (offset + 12 <= png.length) {
     const length = readUint32(png, offset)
     const type = textDecoder.decode(png.subarray(offset + 4, offset + 8))
@@ -85,8 +105,7 @@ export function readPayloadFromPng(base64Png: string): DiagramPayload | null {
     if (type === 'iTXt') {
       const data = png.subarray(dataStart, dataEnd)
       const keywordEnd = data.indexOf(0)
-      const keyword = textDecoder.decode(data.subarray(0, keywordEnd))
-      if (keyword === KEYWORD) {
+      if (hasMetadataKeyword(data)) {
         const expectedCrc = readUint32(png, dataEnd)
         const actualCrc = crc32(png.subarray(offset + 4, dataEnd))
         if (actualCrc !== expectedCrc) {
@@ -94,14 +113,21 @@ export function readPayloadFromPng(base64Png: string): DiagramPayload | null {
         }
 
         const textStart = keywordEnd + 5
-        return parseDiagramPayload(textDecoder.decode(data.subarray(textStart)))
+        // Older writers appended updates, so the last metadata chunk is authoritative.
+        payload = parseDiagramPayload(textDecoder.decode(data.subarray(textStart)))
       }
     }
 
+    if (type === 'IEND') break
     offset = dataEnd + 4
   }
 
-  return null
+  return payload
+}
+
+function hasMetadataKeyword(data: Uint8Array): boolean {
+  const keywordEnd = data.indexOf(0)
+  return keywordEnd >= 0 && textDecoder.decode(data.subarray(0, keywordEnd)) === KEYWORD
 }
 
 function createInternationalTextChunk(text: string): Uint8Array {

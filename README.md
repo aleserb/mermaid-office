@@ -189,6 +189,9 @@ In Excel, select a cell and press **Insert**. The add-in places a PNG shape over
 that cell and stores its Mermaid source and settings in the workbook and in the
 image itself. Select a managed image shape to load it in the pane. Valid edits
 replace the shape while preserving its top-left position and displayed width.
+During replacement, the original image is retained until the new image and its
+source have been saved. Failed updates restore the original image and metadata
+where possible; incomplete recovery is reported explicitly rather than hidden.
 Excel can select a floating image without raising a cell-selection event, so the
 pane also checks selection every half second while the pane is visible and
 refreshes when focus returns. Excel's embedded browser can report pane focus even
@@ -199,6 +202,16 @@ Excel editing requires ExcelApi 1.19, which includes active-shape selection.
 The add-in reports an explicit compatibility error on older Excel clients.
 As in Word, desktop Excel uses live updates and Excel on the web uses explicit
 updates for large diagrams.
+
+## Code organization
+
+Host-independent rasterization and sizing live in `src/rendering/`. The Word and
+Excel adapters own only their document-specific insertion, selection, and
+replacement operations, and accept typed insert/update request objects.
+The shared selection watcher distinguishes document events, background probes,
+and explicit refreshes; editor transitions and debounced Mermaid rendering are
+separate from host I/O. Metadata parsing and image embedding remain in
+`src/metadata/`.
 
 ## Checks
 

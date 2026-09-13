@@ -1,15 +1,9 @@
-import type { DiagramSettings } from '../metadata/diagramSettings'
 import type {
   DiagramFormat,
   DiagramPayload,
-  DiagramSize,
-  DiagramTheme,
 } from '../metadata/payload'
-import type {
-  DiagramInsertionOptions,
-  RasterizedDiagram,
-} from '../word/insertDiagram'
-import type { DiagramSelectionWatcher, SelectionWatchOptions } from './selectionWatcher'
+import type { InsertDiagramRequest, UpdateDiagramRequest } from './diagramRequests'
+import type { DiagramSelectionWatcher, SelectionReceiver, SelectionWatchOptions } from './selectionWatcher'
 import * as excel from '../excel/diagram'
 import * as wordInsert from '../word/insertDiagram'
 import * as wordSelection from '../word/selection'
@@ -19,29 +13,12 @@ export interface HostAdapter {
   insertionLocationError: string
   getSelectedDiagram(): Promise<DiagramPayload | null>
   watchSelectedDiagram(
-    onSelected: (payload: DiagramPayload | null) => void,
+    onSelected: SelectionReceiver,
     onError: (error: Error) => void,
     options?: SelectionWatchOptions,
   ): DiagramSelectionWatcher
-  insertDiagramWithPayload(
-    svg: string,
-    source: string,
-    theme?: DiagramTheme,
-    size?: DiagramSize,
-    renderedRaster?: RasterizedDiagram,
-    options?: DiagramInsertionOptions,
-    settings?: DiagramSettings,
-  ): Promise<DiagramPayload>
-  updateDiagramById(
-    svg: string,
-    existing: DiagramPayload,
-    source: string,
-    theme?: DiagramTheme,
-    size?: DiagramSize,
-    applySize?: boolean,
-    renderedRaster?: RasterizedDiagram,
-    settings?: DiagramSettings,
-  ): Promise<DiagramFormat>
+  insertDiagramWithPayload(request: InsertDiagramRequest): Promise<DiagramPayload>
+  updateDiagramById(request: UpdateDiagramRequest): Promise<DiagramFormat>
 }
 
 const wordAdapter: HostAdapter = {

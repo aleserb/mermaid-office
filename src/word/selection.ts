@@ -6,7 +6,7 @@ import {
   type DiagramPayload,
 } from '../metadata/payload'
 import { readPayloadFromImage } from '../metadata/imageMetadata'
-import { watchDiagramSelection, type DiagramSelectionWatcher } from '../office/selectionWatcher'
+import { watchDiagramSelection, type DiagramSelectionWatcher, type SelectionReceiver, type SelectionWatchOptions } from '../office/selectionWatcher'
 import { configureDiagramContentControl, suppressDiagramPlaceholder } from './contentControls'
 
 function copyWithNewId(payload: DiagramPayload): DiagramPayload {
@@ -141,9 +141,9 @@ export async function getSelectedDiagram(): Promise<DiagramPayload | null> {
 export type { DiagramSelectionWatcher } from '../office/selectionWatcher'
 
 export function watchSelectedDiagram(
-  onSelected: (payload: DiagramPayload | null) => void,
+  onSelected: SelectionReceiver,
   onError: (error: Error) => void,
-  options: { isPaused?: () => boolean; onSelectionChange?: () => void } = {},
+  options: SelectionWatchOptions = {},
 ): DiagramSelectionWatcher {
   return watchDiagramSelection(getSelectedDiagram, onSelected, onError, options)
 }

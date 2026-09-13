@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createDiagramPayload, type DiagramPayload } from '../metadata/payload'
-import { watchDiagramSelection, type DiagramSelectionWatcher } from './selectionWatcher'
+import { watchDiagramSelection, type DiagramSelectionWatcher, type SelectionReceiver } from './selectionWatcher'
 
 let stop: DiagramSelectionWatcher | undefined
 let change: () => void
@@ -44,17 +44,16 @@ it('discovers and switches diagrams without any Office selection notification', 
   await vi.advanceTimersByTimeAsync(0)
   read.mockResolvedValue(first)
   await vi.advanceTimersByTimeAsync(500)
-  expect(selected).toHaveBeenLastCalledWith(first)
-  expect(changed).toHaveBeenCalledWith(true)
+  expect(selected).toHaveBeenLastCalledWith(first, 'document-poll')
   read.mockResolvedValue(second)
   await vi.advanceTimersByTimeAsync(500)
-  expect(selected).toHaveBeenLastCalledWith(second)
+  expect(selected).toHaveBeenLastCalledWith(second, 'document-poll')
   read.mockResolvedValue(null)
   await vi.advanceTimersByTimeAsync(500)
-  expect(selected).toHaveBeenLastCalledWith(null)
-  expect(changed).toHaveBeenCalledTimes(3)
+  expect(selected).toHaveBeenLastCalledWith(null, 'document-poll')
+  expect(changed).not.toHaveBeenCalled()
   await vi.advanceTimersByTimeAsync(1500)
-  expect(changed).toHaveBeenCalledTimes(3)
+  expect(changed).not.toHaveBeenCalled()
   expect(selected).toHaveBeenCalledTimes(4)
 })
 
@@ -70,8 +69,8 @@ it('refreshes on pane focus for clicks shorter than the polling interval', async
   read.mockResolvedValue(null)
   window.dispatchEvent(new Event('focus'))
   await vi.advanceTimersByTimeAsync(0)
-  expect(changed).toHaveBeenCalledExactlyOnceWith(true)
-  expect(selected).toHaveBeenLastCalledWith(null)
+  expect(changed).not.toHaveBeenCalled()
+  expect(selected).toHaveBeenLastCalledWith(null, 'pane-focus')
 })
 
 it('polls despite WebView focus without notifying unchanged selection', async () => {
@@ -88,17 +87,17 @@ it('polls despite WebView focus without notifying unchanged selection', async ()
   expect(changed).not.toHaveBeenCalled()
   read.mockResolvedValue(first)
   await vi.advanceTimersByTimeAsync(500)
-  expect(selected).toHaveBeenLastCalledWith(first)
-  expect(changed).toHaveBeenLastCalledWith(false)
+  expect(selected).toHaveBeenLastCalledWith(first, 'background-poll')
+  expect(changed).not.toHaveBeenCalled()
   read.mockResolvedValue(null)
   await vi.advanceTimersByTimeAsync(500)
-  expect(selected).toHaveBeenLastCalledWith(null)
+  expect(selected).toHaveBeenLastCalledWith(null, 'background-poll')
   // A null while typing can be caused by image replacement, not a user click.
-  expect(changed).toHaveBeenLastCalledWith(false)
+  expect(changed).not.toHaveBeenCalled()
   read.mockResolvedValue(first)
   await vi.advanceTimersByTimeAsync(500)
-  expect(selected).toHaveBeenLastCalledWith(first)
-  expect(changed).toHaveBeenCalledTimes(3)
+  expect(selected).toHaveBeenLastCalledWith(first, 'background-poll')
+  expect(changed).not.toHaveBeenCalled()
 })
 
 it('does not poll while hidden, paused, or already reading', async () => {
@@ -137,8 +136,8 @@ it('drops stale probes and follows a newer Office selection event', async () => 
   change()
   finish(first)
   await vi.advanceTimersByTimeAsync(0)
-  expect(selected).not.toHaveBeenCalledWith(first)
-  expect(selected).toHaveBeenLastCalledWith(second)
+  expect(selected).not.toHaveBeenCalledWith(first, expect.any(String))
+  expect(selected).toHaveBeenLastCalledWith(second, 'office-event')
 })
 
 it('discards a probe interrupted by writing and refreshes after the write', async () => {
@@ -156,11 +155,11 @@ it('discards a probe interrupted by writing and refreshes after the write', asyn
   paused = true
   finish(first)
   await vi.advanceTimersByTimeAsync(1000)
-  expect(selected).not.toHaveBeenCalledWith(first)
+  expect(selected).not.toHaveBeenCalledWith(first, expect.any(String))
   paused = false
   stop.refresh()
   await vi.advanceTimersByTimeAsync(0)
-  expect(selected).toHaveBeenLastCalledWith(second)
+  expect(selected).toHaveBeenLastCalledWith(second, 'document-poll')
 })
 
 it('completes an Office notification queued behind an unchanged probe', async () => {
@@ -177,9 +176,9 @@ it('completes an Office notification queued behind an unchanged probe', async ()
   change()
   finish(first)
   await vi.advanceTimersByTimeAsync(0)
-  expect(changed).toHaveBeenCalledOnce()
+  expect(changed).toHaveBeenCalledExactlyOnceWith('office-event')
   expect(selected).toHaveBeenCalledTimes(2)
-  expect(selected).toHaveBeenLastCalledWith(first)
+  expect(selected).toHaveBeenLastCalledWith(first, 'office-event')
 })
 
 it('reports lookup errors and delivers the next successful result even if unchanged', async () => {
@@ -193,7 +192,7 @@ it('reports lookup errors and delivers the next successful result even if unchan
   expect(error).toHaveBeenCalledWith(expect.objectContaining({ message: 'Excel is unavailable' }))
   await vi.advanceTimersByTimeAsync(500)
   expect(selected).toHaveBeenCalledTimes(2)
-  expect(selected).toHaveBeenLastCalledWith(first)
+  expect(selected).toHaveBeenLastCalledWith(first, 'document-poll')
 })
 
 it('cleans up polling and focus listeners and ignores in-flight results on stop', async () => {
@@ -220,4 +219,62 @@ it('leaves Word event-driven with no polling or focus refresh', async () => {
   await vi.advanceTimersByTimeAsync(2000)
   expect(read).toHaveBeenCalledOnce()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it.each(['pane-focus', 'office-event', 'document-poll'] as const)(
+  'redelivers a rejected null poll when a subsequent %s confirms deselection', async (origin) => {
+    vi.mocked(document.hasFocus).mockReturnValue(true)
+    const read = vi.fn().mockResolvedValue(first)
+    const selected = vi.fn<SelectionReceiver>((_payload, source) => source !== 'background-poll')
+    stop = watchDiagramSelection(read, selected, vi.fn(), { pollIntervalMs: 500 })
+    await vi.advanceTimersByTimeAsync(0)
+    read.mockResolvedValue(null)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(selected).toHaveBeenLastCalledWith(null, 'background-poll')
+    if (origin === 'pane-focus') window.dispatchEvent(new Event('focus'))
+    else if (origin === 'office-event') change()
+    else {
+      vi.mocked(document.hasFocus).mockReturnValue(false)
+      await vi.advanceTimersByTimeAsync(500)
+    }
+    await vi.advanceTimersByTimeAsync(0)
+    expect(selected).toHaveBeenLastCalledWith(null, origin)
+    expect(selected).toHaveBeenCalledTimes(3)
+  },
+)
+
+it('preserves the latest gesture origin across a paused read and an explicit refresh', async () => {
+  let paused = false
+  let finish!: (payload: DiagramPayload | null) => void
+  const read = vi.fn<() => Promise<DiagramPayload | null>>().mockResolvedValue(first)
+  const selected = vi.fn()
+  stop = watchDiagramSelection(read, selected, vi.fn(), { pollIntervalMs: 500, isPaused: () => paused })
+  await vi.advanceTimersByTimeAsync(0)
+  read.mockImplementationOnce(() => new Promise(resolve => { finish = resolve })).mockResolvedValue(null)
+  await vi.advanceTimersByTimeAsync(500)
+  change()
+  paused = true
+  finish(first)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(selected).toHaveBeenCalledOnce()
+  paused = false
+  stop.refresh()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(selected).toHaveBeenLastCalledWith(null, 'office-event')
+})
+
+it('delivers an unchanged explicit refresh queued behind a document poll', async () => {
+  let finish!: (payload: DiagramPayload | null) => void
+  const read = vi.fn<() => Promise<DiagramPayload | null>>().mockResolvedValue(first)
+  const selected = vi.fn()
+  stop = watchDiagramSelection(read, selected, vi.fn(), { pollIntervalMs: 500 })
+  await vi.advanceTimersByTimeAsync(0)
+  read.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+  await vi.advanceTimersByTimeAsync(500)
+  stop.refresh()
+  finish(first)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(read).toHaveBeenCalledTimes(3)
+  expect(selected).toHaveBeenCalledTimes(2)
+  expect(selected).toHaveBeenLastCalledWith(first, 'document-poll')
 })

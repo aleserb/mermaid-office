@@ -24,5 +24,15 @@ export function readPayloadFromImage(base64Image: string): DiagramPayload | null
   }
 
   const text = base64ToText(base64).trim()
-  return /^<svg[\s>]/i.test(text) ? readPayloadFromSvg(text) : null
+  const document = new DOMParser().parseFromString(text, 'image/svg+xml')
+  const root = document.documentElement
+  if (
+    document.querySelector('parsererror') ||
+    root.localName !== 'svg' ||
+    root.namespaceURI !== 'http://www.w3.org/2000/svg'
+  ) {
+    return null
+  }
+
+  return readPayloadFromSvg(text)
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getRasterDimensions, rasterizeSvg } from './insertDiagram'
+import { findVisiblePixelBounds, getRasterDimensions, normalizeSvgDimensions, rasterizeSvg } from './rasterizeSvg'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -35,13 +35,39 @@ describe('adaptive raster sizing', () => {
     expect(getRasterDimensions(1200, 2400, 'medium')).toEqual({ width: 1200, height: 2400 })
   })
 
-  it('does not depend on a Word size preset for native-resolution exports', () => {
+  it('does not depend on a size preset for native-resolution exports', () => {
     expect(getRasterDimensions(300, 100)).toEqual({ width: 300, height: 100 })
   })
 
-  it('adapts to a manually resized Word picture in points', () => {
+  it('adapts to a manually resized picture in points', () => {
     expect(getRasterDimensions(100, 50, 216)).toEqual({ width: 576, height: 288 })
     expect(getRasterDimensions(100, 50, 432)).toEqual({ width: 1152, height: 576 })
+  })
+
+  it('finds the visible alpha bounds for PNG cropping', () => {
+    const pixels = new Uint8ClampedArray(4 * 4 * 3)
+    pixels[(1 * 4 + 1) * 4 + 3] = 255
+    pixels[(2 * 4 + 3) * 4 + 3] = 128
+
+    expect(findVisiblePixelBounds(pixels, 4, 3)).toEqual({
+      left: 1,
+      top: 1,
+      width: 3,
+      height: 2,
+    })
+    expect(findVisiblePixelBounds(new Uint8ClampedArray(16), 2, 2)).toBeNull()
+  })
+
+  it('replaces responsive Mermaid dimensions with explicit SVG bounds', () => {
+    const result = normalizeSvgDimensions(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="100%" style="max-width: 262.5px;" viewBox="0 0 262.5 64.5"></svg>',
+    )
+
+    expect(result.width).toBe(262.5)
+    expect(result.height).toBe(64.5)
+    expect(result.svg).toContain('width="262.5"')
+    expect(result.svg).toContain('height="64.5"')
+    expect(result.svg).not.toContain('max-width')
   })
 
   it('uses the fitted height limit for new tall diagrams, but not existing widths', () => {
