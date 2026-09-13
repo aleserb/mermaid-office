@@ -74,6 +74,7 @@ export function usePaneEditor() {
           },
           {
             isPaused: () => busy.current || current.current.settingsPinned,
+            getPauseReason: () => busy.current ? 'host-write' : current.current.settingsPinned ? 'settings' : undefined,
             onSelectionChange: () => {
               if (active) dispatch({ type: 'selection-started' })
             },

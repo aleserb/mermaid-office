@@ -110,6 +110,93 @@ function useRealSelectionWatcher() {
 }
 
 describe('code-only pane workflow', () => {
+  it('preserves the edited target when picture replacement raises a focused Office event during writing', async () => {
+    const officeSelectionChanged = useRealSelectionWatcher()
+    const { result } = await openPane(existing)
+    const history = result.current.historyKey
+    let finish!: (format: 'png') => void
+    vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    act(() => result.current.changeSource('flowchart LR\nUpdated'))
+    await renderPending()
+    expect(result.current.writing).toBe(true)
+    const options = vi.mocked(watchSelectedDiagram).mock.calls[0][2]
+    expect(options?.isPaused?.()).toBe(true)
+    expect(options?.getPauseReason?.()).toBe('host-write')
+    expect(document.hasFocus()).toBe(true)
+    selected = null
+    await act(async () => officeSelectionChanged())
+    await act(async () => finish('png'))
+    expect(result.current.target?.id).toBe(existing.id)
+    expect(result.current.target?.source).toBe('flowchart LR\nUpdated')
+    expect(result.current.draft.source).toBe('flowchart LR\nUpdated')
+    expect(result.current.historyKey).toBe(history)
+    expect(result.current.pending).toBeNull()
+    expect(result.current.loadingSelection).toBe(false)
+    expect(result.current.writing).toBe(false)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(result.current.target?.id).toBe(existing.id)
+    expect(result.current.historyKey).toBe(history)
+    expect(updateDiagramById).toHaveBeenCalledOnce()
+
+    // A genuine unpaused event is still a gesture even if WebView focus is stale.
+    await act(async () => officeSelectionChanged())
+    expect(result.current.target).toBeNull()
+    expect(result.current.historyKey).toBe(history + 1)
+  })
+
+  it('follows a newly selected diagram after a focused write-time event', async () => {
+    const officeSelectionChanged = useRealSelectionWatcher()
+    const { result } = await openPane(existing)
+    let finish!: (format: 'png') => void
+    vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    act(() => result.current.changeSource('flowchart LR\nUpdated'))
+    await renderPending()
+    const other = createDiagramPayload('flowchart LR\nOther', 'png')
+    selected = other
+    await act(async () => officeSelectionChanged())
+    await act(async () => finish('png'))
+    expect(result.current.target).toBe(other)
+    expect(result.current.draft.source).toBe(other.source)
+  })
+
+  it('retains a real document deselection during writing when focus returns before completion', async () => {
+    const officeSelectionChanged = useRealSelectionWatcher()
+    const { result } = await openPane(existing)
+    let finish!: (format: 'png') => void
+    vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    act(() => result.current.changeSource('flowchart LR\nUpdated'))
+    await renderPending()
+    selected = null
+    vi.mocked(document.hasFocus).mockReturnValue(false)
+    await act(async () => officeSelectionChanged())
+    vi.mocked(document.hasFocus).mockReturnValue(true)
+    await act(async () => officeSelectionChanged())
+    await act(async () => finish('png'))
+    expect(result.current.target).toBeNull()
+    expect(result.current.draft.source).toBe(DEFAULT_DIAGRAM)
+  })
+
+  it.each([false, true])('retains settings-time deselection across closing with applied=%s', async (applied) => {
+    const officeSelectionChanged = useRealSelectionWatcher()
+    const { result } = await openPane(existing)
+    await renderPending()
+    act(() => result.current.beginSettings())
+    const options = vi.mocked(watchSelectedDiagram).mock.calls[0][2]
+    expect(options?.getPauseReason?.()).toBe('settings')
+    selected = null
+    await act(async () => officeSelectionChanged())
+    expect(result.current.target?.id).toBe(existing.id)
+    if (applied) {
+      act(() => result.current.applySettings('dark', DEFAULT_DIAGRAM_SETTINGS))
+      await renderPending()
+    }
+    await act(async () => result.current.endSettings(applied))
+    expect(result.current.target).toBeNull()
+    expect(result.current.draft.source).toBe(DEFAULT_DIAGRAM)
+    expect(options?.getPauseReason?.()).toBeUndefined()
+    expect(updateDiagramById).toHaveBeenCalledTimes(applied ? 1 : 0)
+  })
+
   it.each(['pane-focus', 'office-event'] as const)(
     'does not deduplicate a real %s deselection against a rejected focused null poll', async (origin) => {
       const officeSelectionChanged = useRealSelectionWatcher()

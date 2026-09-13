@@ -313,7 +313,12 @@ it('replaces settings with the pending-edits confirmation instead of stacking mo
   expect(screen.queryByRole('dialog', { name: 'Diagram settings' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Keep editing' }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Diagram settings' })).toBeEnabled()
+  // Tabster restores the background accessibility tree after modal teardown.
+  const settings = await screen.findByRole('button', { name: 'Diagram settings' })
+  expect(settings).toBeEnabled()
+  await user.click(settings)
+  expect(await screen.findByRole('dialog', { name: 'Diagram settings' })).toBeInTheDocument()
+  expect(screen.getByRole('combobox', { name: 'Diagram theme' })).toHaveValue('redux-color')
   expect(updateDiagramById).not.toHaveBeenCalled()
 })
 

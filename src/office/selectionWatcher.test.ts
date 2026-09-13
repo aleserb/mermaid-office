@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createDiagramPayload, type DiagramPayload } from '../metadata/payload'
-import { watchDiagramSelection, type DiagramSelectionWatcher, type SelectionReceiver } from './selectionWatcher'
+import { watchDiagramSelection, type DiagramSelectionWatcher, type SelectionPauseReason, type SelectionReceiver } from './selectionWatcher'
 
 let stop: DiagramSelectionWatcher | undefined
 let change: () => void
@@ -277,4 +277,31 @@ it('delivers an unchanged explicit refresh queued behind a document poll', async
   expect(read).toHaveBeenCalledTimes(3)
   expect(selected).toHaveBeenCalledTimes(2)
   expect(selected).toHaveBeenLastCalledWith(first, 'document-poll')
+})
+
+it.each([
+  ['host-write', true, 'refresh'],
+  ['host-write', false, 'office-event'],
+  ['settings', true, 'office-event'],
+] as const)('classifies paused %s events with pane focus=%s as %s', async (reason, focused, origin) => {
+  let pauseReason: SelectionPauseReason | undefined
+  const read = vi.fn().mockResolvedValue(first)
+  const selected = vi.fn()
+  const changed = vi.fn()
+  stop = watchDiagramSelection(read, selected, vi.fn(), {
+    getPauseReason: () => pauseReason, onSelectionChange: changed,
+  })
+  await vi.advanceTimersByTimeAsync(0)
+  pauseReason = reason
+  vi.mocked(document.hasFocus).mockReturnValue(focused)
+  read.mockResolvedValue(null)
+  change()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(read).toHaveBeenCalledOnce()
+  if (origin === 'refresh') expect(changed).not.toHaveBeenCalled()
+  else expect(changed).toHaveBeenCalledExactlyOnceWith('office-event')
+  pauseReason = undefined
+  stop.refresh()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(selected).toHaveBeenLastCalledWith(null, origin)
 })

@@ -13,8 +13,11 @@ export type SelectionOrigin =
 // Rejected snapshots must not become the deduplication baseline.
 export type SelectionReceiver = (payload: DiagramPayload | null, origin: SelectionOrigin) => boolean | void
 
+export type SelectionPauseReason = 'host-write' | 'settings'
+
 export interface SelectionWatchOptions {
   isPaused?: () => boolean
+  getPauseReason?: () => SelectionPauseReason | undefined
   onSelectionChange?: (origin: SelectionOrigin) => void
 }
 
@@ -46,12 +49,13 @@ export function watchDiagramSelection(
   let queuedDeliverUnchanged = false
   let lastSelectionId: string | null | undefined
   let readFailed = false
+  const isPaused = () => Boolean(options.isPaused?.() || options.getPauseReason?.())
 
   const checkSelection = async (origin: SelectionOrigin) => {
     if (!active) return
     queuedOrigin = mergeOrigin(queuedOrigin, origin)
     queuedDeliverUnchanged ||= origin !== 'background-poll' && origin !== 'document-poll'
-    if (checking || options.isPaused?.()) return
+    if (checking || isPaused()) return
 
     checking = true
     const readOrigin = queuedOrigin
@@ -60,7 +64,7 @@ export function watchDiagramSelection(
     queuedDeliverUnchanged = false
     try {
       const payload = await getSelectedDiagram()
-      if (options.isPaused?.()) queuedOrigin = mergeOrigin(readOrigin, queuedOrigin ?? readOrigin)
+      if (isPaused()) queuedOrigin = mergeOrigin(readOrigin, queuedOrigin ?? readOrigin)
       if (active && !queuedOrigin) {
         const id = payload?.id ?? null
         const changed = id !== lastSelectionId
@@ -77,7 +81,7 @@ export function watchDiagramSelection(
         }
       }
     } catch (error) {
-      if (options.isPaused?.()) queuedOrigin = mergeOrigin(readOrigin, queuedOrigin ?? readOrigin)
+      if (isPaused()) queuedOrigin = mergeOrigin(readOrigin, queuedOrigin ?? readOrigin)
       if (active && !queuedOrigin) {
         readFailed = true
         onError(error instanceof Error ? error : new Error('Unable to read selected diagram.'))
@@ -88,14 +92,14 @@ export function watchDiagramSelection(
         queuedOrigin = mergeOrigin(readOrigin, queuedOrigin)
         queuedDeliverUnchanged ||= deliverUnchanged
       }
-      if (active && queuedOrigin && !options.isPaused?.()) {
+      if (active && queuedOrigin && !isPaused()) {
         void checkSelection(queuedOrigin)
       }
     }
   }
 
   const checkOnFocus = () => {
-    if (!options.isPaused?.() && document.visibilityState !== 'hidden') {
+    if (!isPaused() && document.visibilityState !== 'hidden') {
       void checkSelection('pane-focus')
     }
   }
@@ -103,7 +107,7 @@ export function watchDiagramSelection(
   // WebView focus is not a reliable signal of workbook interaction in desktop
   // Excel. Poll visible panes, but don't treat replacement-driven nulls as clicks.
   const pollTimer = options.pollIntervalMs === undefined ? undefined : window.setInterval(() => {
-    if (!checking && !options.isPaused?.() && document.visibilityState !== 'hidden') {
+    if (!checking && !isPaused() && document.visibilityState !== 'hidden') {
       void checkSelection(document.hasFocus() ? 'background-poll' : 'document-poll')
     }
   }, options.pollIntervalMs)
@@ -111,6 +115,12 @@ export function watchDiagramSelection(
 
   const handler = () => {
     if (!active) return
+    // Replacing a picture can itself raise an Office selection event. While
+    // writing from the focused pane, defer that signal without asserting a click.
+    if (options.getPauseReason?.() === 'host-write' && document.hasFocus()) {
+      void checkSelection('refresh')
+      return
+    }
     options.onSelectionChange?.('office-event')
     void checkSelection('office-event')
   }
