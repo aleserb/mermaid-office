@@ -9,7 +9,7 @@ import type {
   DiagramInsertionOptions,
   RasterizedDiagram,
 } from '../word/insertDiagram'
-import type { DiagramSelectionWatcher } from './selectionWatcher'
+import type { DiagramSelectionWatcher, SelectionWatchOptions } from './selectionWatcher'
 import * as excel from '../excel/diagram'
 import * as wordInsert from '../word/insertDiagram'
 import * as wordSelection from '../word/selection'
@@ -21,7 +21,7 @@ export interface HostAdapter {
   watchSelectedDiagram(
     onSelected: (payload: DiagramPayload | null) => void,
     onError: (error: Error) => void,
-    options?: { isPaused?: () => boolean; onSelectionChange?: () => void },
+    options?: SelectionWatchOptions,
   ): DiagramSelectionWatcher
   insertDiagramWithPayload(
     svg: string,

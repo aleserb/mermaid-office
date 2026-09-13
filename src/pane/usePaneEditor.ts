@@ -148,9 +148,9 @@ export function usePaneEditor() {
           },
           {
             isPaused: () => busy.current || settingsPinned.current,
-            onSelectionChange: () => {
+            onSelectionChange: (fromDocument) => {
               if (!active) return
-              selectionFromDocument.current ||= !document.hasFocus()
+              selectionFromDocument.current ||= fromDocument || !document.hasFocus()
               if (settingsPinned.current) return
               setLoadingSelection(true)
             },

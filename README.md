@@ -189,6 +189,9 @@ In Excel, select a cell and press **Insert**. The add-in places a PNG shape over
 that cell and stores its Mermaid source and settings in the workbook and in the
 image itself. Select a managed image shape to load it in the pane. Valid edits
 replace the shape while preserving its top-left position and displayed width.
+Excel can select a floating image without raising a cell-selection event, so the
+pane also checks selection every half second while focus is outside the pane and
+refreshes when focus returns. These checks pause during image writes and settings.
 Copied shapes recover embedded metadata and receive a new identity when needed.
 
 Excel editing requires ExcelApi 1.19, which includes active-shape selection.

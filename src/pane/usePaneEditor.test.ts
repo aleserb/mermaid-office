@@ -22,7 +22,7 @@ const existing = createDiagramPayload('flowchart LR\nA-->B', 'png', 'forest')
 const large = createDiagramPayload(`flowchart LR\n${'A-->B\n'.repeat(50)}`, 'png', 'forest')
 let selected: typeof existing | null = null
 let receiveSelection: (payload: typeof existing | null) => void
-let notifySelection: (() => void) | undefined
+let notifySelection: ((fromDocument?: boolean) => void) | undefined
 let isPaused: (() => boolean) | undefined
 const stopWatching = vi.fn()
 const refreshSelection = vi.fn()
@@ -473,6 +473,29 @@ describe('code-only pane workflow', () => {
     act(() => selectInWord(null, false))
     expect(result.current.target?.id).toBe(existing.id)
     expect(result.current.draft.source).toBe(existing.source)
+  })
+
+  it('honors deselection detected after focus returns to the pane', async () => {
+    const { result } = await openPane(existing)
+    expect(document.hasFocus()).toBe(true)
+    act(() => {
+      notifySelection?.(true)
+      receiveSelection(null)
+    })
+    expect(result.current.target).toBeNull()
+    expect(result.current.loadingSelection).toBe(false)
+  })
+
+  it('preserves unsaved edits when a focus refresh detects deselection', async () => {
+    const { result } = await openPane(existing)
+    act(() => result.current.changeSource('flowchart LR\nUnsaved'))
+    act(() => {
+      notifySelection?.(true)
+      receiveSelection(null)
+    })
+    expect(result.current.target?.id).toBe(existing.id)
+    expect(result.current.draft.source).toBe('flowchart LR\nUnsaved')
+    expect(result.current.pending).toEqual({ target: null })
   })
 
   it('preserves unsaved edits and confirms a selection-driven switch', async () => {

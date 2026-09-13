@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { act, cleanup, renderHook } from '@testing-library/react'
+import { LIVE_UPDATE_DELAY, usePaneEditor } from '../pane/usePaneEditor'
 import { DEFAULT_DIAGRAM_SETTINGS } from '../metadata/diagramSettings'
 import { readPayloadFromImage } from '../metadata/imageMetadata'
 import { embedPayloadInPng } from '../metadata/pngMetadata'
@@ -16,7 +18,13 @@ import {
 
 vi.mock('../metadata/imageMetadata', () => ({ readPayloadFromImage: vi.fn() }))
 vi.mock('../metadata/pngMetadata', () => ({ embedPayloadInPng: vi.fn(() => 'embedded-png') }))
+vi.mock('../mermaid/render', async importOriginal => ({
+  ...await importOriginal<typeof import('../mermaid/render')>(),
+  renderMermaid: vi.fn().mockResolvedValue('<svg/>'),
+}))
 vi.mock('../word/insertDiagram', () => ({
+  insertDiagramWithPayload: vi.fn(),
+  updateDiagramById: vi.fn(),
   fitDiagram: vi.fn((width: number, height: number, maxWidth: number) => ({
     width: maxWidth,
     height: maxWidth * height / width,
@@ -91,10 +99,16 @@ function setupExcel() {
       callback({ workbook, sync: vi.fn().mockResolvedValue(undefined) })),
   })
   vi.stubGlobal('Office', {
+    onReady: vi.fn().mockResolvedValue({ host: 'Excel' }),
+    EventType: { DocumentSelectionChanged: 'selection-change' },
     AsyncResultStatus: { Failed: 'failed' },
     context: {
+      host: 'Excel',
+      platform: 'PC',
       requirements: { isSetSupported: vi.fn(() => true) },
       document: {
+        addHandlerAsync: vi.fn((_event, _handler, callback) => callback({ status: 'succeeded' })),
+        removeHandlerAsync: vi.fn(),
         settings: {
           get: vi.fn((key: string) => values.get(key)),
           set: vi.fn((key: string, value: string) => values.set(key, value)),
@@ -118,8 +132,46 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
+  localStorage.clear()
+})
+
+it('loads and edits an existing Excel image without a document-selection event', async () => {
+  vi.useFakeTimers()
+  vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  const payload = createDiagramPayload('flowchart LR\nExisting-->Diagram', 'png')
+  values.set(getDocumentSettingKey(payload.id), JSON.stringify(payload))
+  const original = shape({ name: getExcelShapeName(payload.id) })
+  shapes = [original]
+  const { result } = renderHook(usePaneEditor)
+  await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+  expect(result.current.target).toBeNull()
+
+  // Selecting an image need not change the selected cells or emit an Office event.
+  activeShape = original
+  await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+  expect(result.current.target?.id).toBe(payload.id)
+  expect(result.current.draft.source).toBe(payload.source)
+  expect(result.current.loadingSelection).toBe(false)
+
+  vi.mocked(document.hasFocus).mockReturnValue(true)
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(0)
+  })
+  act(() => result.current.changeSource('flowchart LR\nExisting-->Updated'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(LIVE_UPDATE_DELAY) })
+  expect(original.delete).toHaveBeenCalledOnce()
+  expect(inserted).toHaveLength(1)
+  expect(JSON.parse(values.get(getDocumentSettingKey(payload.id))!)).toMatchObject({
+    source: 'flowchart LR\nExisting-->Updated',
+  })
+  expect(result.current.target?.source).toBe('flowchart LR\nExisting-->Updated')
 })
 
 it('inserts a named PNG over the selected cell and stores its payload', async () => {

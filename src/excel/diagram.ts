@@ -12,7 +12,7 @@ import {
   type DiagramSize,
   type DiagramTheme,
 } from '../metadata/payload'
-import { watchDiagramSelection, type DiagramSelectionWatcher } from '../office/selectionWatcher'
+import { watchDiagramSelection, type DiagramSelectionWatcher, type SelectionWatchOptions } from '../office/selectionWatcher'
 import {
   fitDiagram,
   rasterizeSvg,
@@ -142,9 +142,12 @@ export async function getSelectedDiagram(): Promise<DiagramPayload | null> {
 export function watchSelectedDiagram(
   onSelected: (payload: DiagramPayload | null) => void,
   onError: (error: Error) => void,
-  options: { isPaused?: () => boolean; onSelectionChange?: () => void } = {},
+  options: SelectionWatchOptions = {},
 ): DiagramSelectionWatcher {
-  return watchDiagramSelection(getSelectedDiagram, onSelected, onError, options)
+  return watchDiagramSelection(getSelectedDiagram, onSelected, onError, {
+    ...options,
+    pollIntervalMs: 500,
+  })
 }
 
 export async function insertDiagramWithPayload(
