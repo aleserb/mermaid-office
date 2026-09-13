@@ -21,13 +21,15 @@ export function watchDiagramSelection(
   let checking = false
   let queued = false
   let queuedFromDocument = false
+  let queuedDocumentGesture = false
   let queuedRefresh = false
   let lastSelectionId: string | null | undefined
   let readFailed = false
 
-  const checkSelection = async (fromDocument = false) => {
+  const checkSelection = async (fromDocument = false, documentGesture = false) => {
     if (!active) return
     queuedFromDocument ||= fromDocument
+    queuedDocumentGesture ||= documentGesture
     queuedRefresh ||= !fromDocument
     if (checking || options.isPaused?.()) {
       queued = true
@@ -37,8 +39,10 @@ export function watchDiagramSelection(
     checking = true
     queued = false
     const notifyOnChange = queuedFromDocument
+    const observedDocumentGesture = queuedDocumentGesture
     const deliverUnchanged = queuedRefresh
     queuedFromDocument = false
+    queuedDocumentGesture = false
     queuedRefresh = false
     try {
       const payload = await getSelectedDiagram()
@@ -47,7 +51,7 @@ export function watchDiagramSelection(
         const id = payload?.id ?? null
         const changed = id !== lastSelectionId
         // Background probes must not repeatedly lock the editor or discard a draft.
-        if (notifyOnChange && changed) options.onSelectionChange?.(true)
+        if (notifyOnChange && changed) options.onSelectionChange?.(observedDocumentGesture)
         lastSelectionId = id
         if (deliverUnchanged || changed || readFailed) onSelected(payload)
         readFailed = false
@@ -62,6 +66,7 @@ export function watchDiagramSelection(
       checking = false
       if (queued) {
         queuedFromDocument ||= notifyOnChange
+        queuedDocumentGesture ||= observedDocumentGesture
         queuedRefresh ||= deliverUnchanged
       }
       if (active && queued && !options.isPaused?.()) {
@@ -72,14 +77,15 @@ export function watchDiagramSelection(
 
   const checkOnFocus = () => {
     if (!options.isPaused?.() && document.visibilityState !== 'hidden') {
-      void checkSelection(true)
+      void checkSelection(true, true)
     }
   }
   // Excel can change the active shape without changing the selected cell range.
-  // Only Excel opts in; avoid Office roundtrips while typing or writing an image.
+  // WebView focus is not a reliable signal of workbook interaction in desktop
+  // Excel. Poll visible panes, but don't treat replacement-driven nulls as clicks.
   const pollTimer = options.pollIntervalMs === undefined ? undefined : window.setInterval(() => {
-    if (!checking && !options.isPaused?.() && !document.hasFocus() && document.visibilityState !== 'hidden') {
-      void checkSelection(true)
+    if (!checking && !options.isPaused?.() && document.visibilityState !== 'hidden') {
+      void checkSelection(true, !document.hasFocus())
     }
   }, options.pollIntervalMs)
   if (pollTimer !== undefined) window.addEventListener('focus', checkOnFocus)

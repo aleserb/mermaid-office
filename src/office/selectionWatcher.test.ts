@@ -74,17 +74,40 @@ it('refreshes on pane focus for clicks shorter than the polling interval', async
   expect(selected).toHaveBeenLastCalledWith(null)
 })
 
-it('does not poll while typing, hidden, paused, or already reading', async () => {
+it('polls despite WebView focus without notifying unchanged selection', async () => {
+  vi.mocked(document.hasFocus).mockReturnValue(true)
+  const read = vi.fn().mockResolvedValue(null)
+  const selected = vi.fn()
+  const changed = vi.fn()
+  stop = watchDiagramSelection(read, selected, vi.fn(), {
+    pollIntervalMs: 500, onSelectionChange: changed,
+  })
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(read).toHaveBeenCalledTimes(3)
+  expect(selected).toHaveBeenCalledOnce()
+  expect(changed).not.toHaveBeenCalled()
+  read.mockResolvedValue(first)
+  await vi.advanceTimersByTimeAsync(500)
+  expect(selected).toHaveBeenLastCalledWith(first)
+  expect(changed).toHaveBeenLastCalledWith(false)
+  read.mockResolvedValue(null)
+  await vi.advanceTimersByTimeAsync(500)
+  expect(selected).toHaveBeenLastCalledWith(null)
+  // A null while typing can be caused by image replacement, not a user click.
+  expect(changed).toHaveBeenLastCalledWith(false)
+  read.mockResolvedValue(first)
+  await vi.advanceTimersByTimeAsync(500)
+  expect(selected).toHaveBeenLastCalledWith(first)
+  expect(changed).toHaveBeenCalledTimes(3)
+})
+
+it('does not poll while hidden, paused, or already reading', async () => {
   let paused = false
   const read = vi.fn<() => Promise<DiagramPayload | null>>().mockResolvedValue(null)
   stop = watchDiagramSelection(read, vi.fn(), vi.fn(), {
     pollIntervalMs: 500, isPaused: () => paused,
   })
   await vi.advanceTimersByTimeAsync(0)
-  vi.mocked(document.hasFocus).mockReturnValue(true)
-  await vi.advanceTimersByTimeAsync(1000)
-  expect(read).toHaveBeenCalledOnce()
-  vi.mocked(document.hasFocus).mockReturnValue(false)
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
   await vi.advanceTimersByTimeAsync(1000)
   expect(read).toHaveBeenCalledOnce()

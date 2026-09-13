@@ -140,9 +140,9 @@ afterEach(() => {
   localStorage.clear()
 })
 
-it('loads and edits an existing Excel image without a document-selection event', async () => {
+it('loads and edits an existing Excel image even when WebView focus stays true', async () => {
   vi.useFakeTimers()
-  vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   const payload = createDiagramPayload('flowchart LR\nExisting-->Diagram', 'png')
   values.set(getDocumentSettingKey(payload.id), JSON.stringify(payload))
@@ -159,11 +159,6 @@ it('loads and edits an existing Excel image without a document-selection event',
   expect(result.current.draft.source).toBe(payload.source)
   expect(result.current.loadingSelection).toBe(false)
 
-  vi.mocked(document.hasFocus).mockReturnValue(true)
-  await act(async () => {
-    window.dispatchEvent(new Event('focus'))
-    await vi.advanceTimersByTimeAsync(0)
-  })
   act(() => result.current.changeSource('flowchart LR\nExisting-->Updated'))
   await act(async () => { await vi.advanceTimersByTimeAsync(LIVE_UPDATE_DELAY) })
   expect(original.delete).toHaveBeenCalledOnce()
@@ -172,6 +167,42 @@ it('loads and edits an existing Excel image without a document-selection event',
     source: 'flowchart LR\nExisting-->Updated',
   })
   expect(result.current.target?.source).toBe('flowchart LR\nExisting-->Updated')
+})
+
+it('reloads updated source after inserting, deselecting, and reselecting an image', async () => {
+  vi.useFakeTimers()
+  vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  const { result } = renderHook(usePaneEditor)
+  await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+  act(() => result.current.changeSource('flowchart LR\nNew-->Diagram'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(LIVE_UPDATE_DELAY) })
+  await act(async () => { await result.current.insert() })
+  const payload = result.current.target!
+  activeShape = inserted[0]
+  shapes = [activeShape]
+  await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+  act(() => result.current.changeSource('flowchart LR\nNew-->Updated'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(LIVE_UPDATE_DELAY) })
+  const replacement = inserted[1]
+  shapes = [replacement]
+  activeShape = shape({ isNullObject: true })
+  vi.mocked(document.hasFocus).mockReturnValue(false)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  expect(result.current.target).toBeNull()
+
+  // A shape click changes neither the cell range nor the reported WebView focus.
+  vi.mocked(document.hasFocus).mockReturnValue(true)
+  activeShape = replacement
+  await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+  expect(result.current.target?.id).toBe(payload.id)
+  expect(result.current.draft.source).toBe('flowchart LR\nNew-->Updated')
+  expect(result.current.loadingSelection).toBe(false)
+  act(() => result.current.changeSource('flowchart LR\nReselected-->Edited'))
+  await act(async () => { await vi.advanceTimersByTimeAsync(LIVE_UPDATE_DELAY) })
+  expect(replacement.delete).toHaveBeenCalledOnce()
 })
 
 it('inserts a named PNG over the selected cell and stores its payload', async () => {
