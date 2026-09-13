@@ -11,6 +11,8 @@ const supported = vi.fn()
 
 beforeEach(() => {
   vi.useFakeTimers()
+  vi.spyOn(window.screen, 'width', 'get').mockReturnValue(1920)
+  vi.spyOn(window.screen, 'height', 'get').mockReturnValue(1080)
   handlers = {}
   vi.resetAllMocks()
   supported.mockReturnValue(true)
@@ -22,7 +24,7 @@ beforeEach(() => {
   })
 })
 
-afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 function opened() {
   display.mock.calls[0][2]({ status: 'succeeded', value: dialog })
@@ -39,6 +41,7 @@ it('opens over Word and exchanges settings only after a ready handshake', () => 
   expect(new URL(url).searchParams.get('view')).toBe('settings')
   expect(url).not.toContain('forest')
   expect(options.displayInIframe).toBe(true)
+  expect(options).toMatchObject({ width: 30, height: 76 })
   const session = opened()
   expect(dialog.messageChild).not.toHaveBeenCalled()
   message(session, 'ready')

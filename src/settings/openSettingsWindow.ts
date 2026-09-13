@@ -58,7 +58,7 @@ export function openSettingsWindow(snapshot: SettingsSnapshot, callbacks: Settin
     Office.context.ui.displayDialogAsync(url.href, {
       displayInIframe: true,
       width: Math.min(90, Math.max(30, Math.round(560 / (window.screen.width || window.innerWidth) * 100))),
-      height: Math.min(90, Math.max(45, Math.round(740 / (window.screen.height || window.innerHeight) * 100))),
+      height: Math.min(90, Math.max(45, Math.round(820 / (window.screen.height || window.innerHeight) * 100))),
     }, result => {
       if (result.status !== Office.AsyncResultStatus.Succeeded) {
         finish(`Unable to open settings: ${result.error.message} (${result.error.code}).`)
