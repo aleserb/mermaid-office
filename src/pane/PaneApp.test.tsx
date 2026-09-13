@@ -149,29 +149,6 @@ it('shows a header Update button for a large diagram and writes only on click', 
     return Object.assign(vi.fn(), { refresh: vi.fn() })
   })
 
-  it('uses Excel host text and routes updates through the Excel adapter', async () => {
-    const selected = createDiagramPayload(`flowchart LR\n${'A-->B\n'.repeat(50)}`, 'png')
-    vi.stubGlobal('Office', {
-      onReady: vi.fn().mockResolvedValue({ host: 'Excel' }),
-      context: { document: {}, host: 'Excel' },
-    })
-    vi.mocked(excelDiagram.watchSelectedDiagram).mockImplementationOnce(onSelected => {
-      onSelected(selected)
-      return Object.assign(vi.fn(), { refresh: vi.fn() })
-    })
-    vi.mocked(excelDiagram.updateDiagramById).mockResolvedValueOnce('png')
-    const user = userEvent.setup()
-    const { container } = render(<PaneApp />)
-    await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
-    const code = EditorView.findFromDOM(container.querySelector<HTMLElement>('.cm-editor')!)
-    act(() => code!.dispatch({ changes: { from: code!.state.doc.length, insert: '\nB-->C' } }))
-    const update = await screen.findByRole('button', { name: 'Update' })
-    await waitFor(() => expect(update).toBeEnabled(), { timeout: 2000 })
-    expect(screen.getByRole('status')).toHaveTextContent('written to Excel')
-    await user.click(update)
-    await waitFor(() => expect(excelDiagram.updateDiagramById).toHaveBeenCalledOnce())
-    expect(updateDiagramById).not.toHaveBeenCalled()
-  })
   let finishUpdate!: (format: 'png') => void
   vi.mocked(updateDiagramById).mockImplementationOnce(() => new Promise(resolve => { finishUpdate = resolve }))
   const user = userEvent.setup()
@@ -193,6 +170,30 @@ it('shows a header Update button for a large diagram and writes only on click', 
   expect(screen.getByRole('banner').nextElementSibling).toBe(container.querySelector('.editor-shell'))
   await act(async () => finishUpdate('png'))
   await waitFor(() => expect(update).toBeDisabled())
+})
+
+it('uses Excel host text and routes updates through the Excel adapter', async () => {
+  const selected = createDiagramPayload(`flowchart LR\n${'A-->B\n'.repeat(50)}`, 'png')
+  vi.stubGlobal('Office', {
+    onReady: vi.fn().mockResolvedValue({ host: 'Excel' }),
+    context: { document: {}, host: 'Excel' },
+  })
+  vi.mocked(excelDiagram.watchSelectedDiagram).mockImplementationOnce(onSelected => {
+    onSelected(selected)
+    return Object.assign(vi.fn(), { refresh: vi.fn() })
+  })
+  vi.mocked(excelDiagram.updateDiagramById).mockResolvedValueOnce('png')
+  const user = userEvent.setup()
+  const { container } = render(<PaneApp />)
+  await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
+  const code = EditorView.findFromDOM(container.querySelector<HTMLElement>('.cm-editor')!)
+  act(() => code!.dispatch({ changes: { from: code!.state.doc.length, insert: '\nB-->C' } }))
+  const update = await screen.findByRole('button', { name: 'Update' })
+  await waitFor(() => expect(update).toBeEnabled(), { timeout: 2000 })
+  expect(screen.getByRole('status')).toHaveTextContent('written to Excel')
+  await user.click(update)
+  await waitFor(() => expect(excelDiagram.updateDiagramById).toHaveBeenCalledOnce())
+  expect(updateDiagramById).not.toHaveBeenCalled()
 })
 
 it('closes stale settings when the selected diagram changes and opens the new values', async () => {
