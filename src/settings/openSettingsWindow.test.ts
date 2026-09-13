@@ -11,10 +11,10 @@ const supported = vi.fn()
 
 beforeEach(() => {
   vi.useFakeTimers()
-  vi.spyOn(window.screen, 'width', 'get').mockReturnValue(1920)
-  vi.spyOn(window.screen, 'height', 'get').mockReturnValue(1080)
   handlers = {}
   vi.resetAllMocks()
+  vi.spyOn(window.screen, 'width', 'get').mockReturnValue(1920)
+  vi.spyOn(window.screen, 'height', 'get').mockReturnValue(1080)
   supported.mockReturnValue(true)
   dialog.addEventHandler.mockImplementation((type, handler) => { handlers[type] = handler })
   vi.stubGlobal('Office', {
