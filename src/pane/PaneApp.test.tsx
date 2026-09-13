@@ -286,7 +286,7 @@ it('disables settings while loading the selected diagram', async () => {
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   const user = userEvent.setup()
   render(<PaneApp />)
-  expect(screen.getByRole('button', { name: 'Diagram settings' })).toBeDisabled()
+  expect(await screen.findByRole('button', { name: 'Diagram settings' })).toBeDisabled()
   await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
   await user.click(screen.getByRole('button', { name: 'Diagram settings' }))
   act(() => {
