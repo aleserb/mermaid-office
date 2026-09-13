@@ -16,21 +16,25 @@ it('receives settings over the Office bridge and sends Apply without accessing W
   const messageParent = vi.fn()
   vi.stubGlobal('Office', {
     onReady: () => Promise.resolve(),
-    context: { ui: {
-      messageParent,
-      addHandlerAsync: vi.fn((_event, received, callback) => {
-        handler = received
-        callback({ status: 'succeeded' })
-      }),
-    } },
+    context: {
+      officeTheme: { isDarkTheme: true },
+      ui: {
+        messageParent,
+        addHandlerAsync: vi.fn((_event, received, callback) => {
+          handler = received
+          callback({ status: 'succeeded' })
+        }),
+      },
+    },
     EventType: { DialogParentMessageReceived: 'parent' },
     AsyncResultStatus: { Succeeded: 'succeeded' },
   })
   const user = userEvent.setup()
-  render(<SettingsWindow />)
+  const { container } = render(<SettingsWindow />)
   await waitFor(() => expect(messageParent).toHaveBeenCalledWith(
     JSON.stringify({ type: 'ready', session: 'test-session' }), { targetOrigin: window.location.origin },
   ))
+  expect(container.querySelector<HTMLElement>('.fui-FluentProvider')?.style.colorScheme).toBe('dark')
   act(() => handler({ origin: window.location.origin, message: JSON.stringify({
     type: 'init', session: 'test-session', theme: 'forest',
     settings: DEFAULT_DIAGRAM_SETTINGS, diagramKind: 'sequence',

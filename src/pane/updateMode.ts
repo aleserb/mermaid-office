@@ -1,5 +1,9 @@
 import { getSvgDimensions } from '../mermaid/svgDimensions'
 
+export function requiresManualLargeDiagramUpdates(platform?: string): boolean {
+  return platform !== 'PC' && platform !== 'Mac'
+}
+
 export function isLargeDiagram(source: string, svg?: string): boolean {
   if (source.length >= 4000 || source.split(/\r?\n/).filter(line => line.trim()).length >= 50) {
     return true

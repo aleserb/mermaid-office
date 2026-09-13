@@ -1,5 +1,14 @@
 import { expect, it } from 'vitest'
-import { isLargeDiagram } from './updateMode'
+import { isLargeDiagram, requiresManualLargeDiagramUpdates } from './updateMode'
+
+it.each([
+  ['PC', false],
+  ['Mac', false],
+  ['OfficeOnline', true],
+  [undefined, true],
+] as const)('requires manual large-diagram updates on platform %s: %s', (platform, expected) => {
+  expect(requiresManualLargeDiagramUpdates(platform)).toBe(expected)
+})
 
 it('uses nonblank source lines and character count as early size signals', () => {
   expect(isLargeDiagram('A\n'.repeat(49))).toBe(false)

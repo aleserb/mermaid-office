@@ -12,6 +12,7 @@ import {
   MessageBar,
   MessageBarBody,
   Spinner,
+  webDarkTheme,
   webLightTheme,
 } from '@fluentui/react-components'
 import { MermaidEditor } from '../components/MermaidEditor'
@@ -19,9 +20,11 @@ import { SyntaxHelpLink } from '../components/SyntaxHelpLink'
 import { DiagramSettingsDialog } from '../components/DiagramSettingsDialog'
 import { usePaneEditor } from './usePaneEditor'
 import { openSettingsWindow } from '../settings/openSettingsWindow'
+import { useOfficeDarkTheme } from '../preferences/officeTheme'
 import './pane.css'
 
 export function PaneApp() {
+  const darkMode = useOfficeDarkTheme()
   const editor = usePaneEditor()
   const settingsButton = useRef<HTMLButtonElement>(null)
   const restoreSettingsFocus = useRef(false)
@@ -74,7 +77,11 @@ export function PaneApp() {
       : ''
 
   return (
-    <FluentProvider theme={webLightTheme} style={{ colorScheme: 'light' }}>
+    <FluentProvider
+      className="office-theme"
+      theme={darkMode ? webDarkTheme : webLightTheme}
+      style={{ colorScheme: darkMode ? 'dark' : 'light' }}
+    >
       <main className="pane-shell" inert={editor.settingsActive}>
         <header className="pane-header">
           <div className="pane-actions">
@@ -131,6 +138,7 @@ export function PaneApp() {
             onChange={editor.changeSource}
             diagnostic={editor.diagnostic}
             historyKey={String(editor.historyKey)}
+            darkMode={darkMode}
           />
         ) : <Spinner label="Loading selected diagram" />}
 

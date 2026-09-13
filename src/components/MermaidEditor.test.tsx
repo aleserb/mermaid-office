@@ -88,19 +88,11 @@ it('uses System UI at 12px and preserves editor state, selection, and undo histo
   expect(editor.state.doc.toString()).toBe(source)
 })
 
-it('stays light under dark Word and system preferences and preserves editing history', () => {
-  vi.stubGlobal('Office', { context: { officeTheme: { isDarkTheme: true } } })
-  vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
-    matches: true,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-  }))
+it('switches between light and dark themes without losing editor state or history', () => {
   const source = 'sequenceDiagram\nparticipant web'
   const onChange = vi.fn()
   const { container, rerender } = render(
-    <MermaidEditor value={source} onChange={onChange} />,
+    <MermaidEditor value={source} onChange={onChange} darkMode={false} />,
   )
   const element = container.querySelector<HTMLElement>('.cm-editor')
   if (!element) throw new Error('Code editor was not rendered.')
@@ -113,10 +105,13 @@ it('stays light under dark Word and system preferences and preserves editing his
   })
   const editedSource = editor.state.doc.toString()
 
-  rerender(<MermaidEditor value={source} onChange={onChange} />)
-  expect(editor.state.facet(EditorView.darkTheme)).toBe(false)
+  rerender(<MermaidEditor value={editedSource} onChange={onChange} darkMode />)
+  expect(editor.state.facet(EditorView.darkTheme)).toBe(true)
   expect(editor.state.doc.toString()).toBe(editedSource)
   expect(editor.state.selection.main.anchor).toBe(source.length)
   expect(undo(editor)).toBe(true)
   expect(editor.state.doc.toString()).toBe(source)
+
+  rerender(<MermaidEditor value={source} onChange={onChange} darkMode={false} />)
+  expect(editor.state.facet(EditorView.darkTheme)).toBe(false)
 })

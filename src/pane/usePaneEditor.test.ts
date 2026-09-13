@@ -76,6 +76,20 @@ async function renderPending() {
 }
 
 describe('code-only pane workflow', () => {
+  it.each(['PC', 'Mac'] as const)('keeps live updates enabled for large diagrams on desktop %s', async (platform) => {
+    vi.stubGlobal('Office', {
+      onReady: vi.fn().mockResolvedValue({}),
+      context: { document: {}, platform },
+    })
+    const { result } = await openPane(large)
+    await renderPending()
+    expect(result.current.manualUpdates).toBe(false)
+    act(() => result.current.changeSource(`${large.source}B-->C`))
+    await renderPending()
+    expect(updateDiagramById).toHaveBeenCalledOnce()
+    expect(result.current.manualUpdates).toBe(false)
+  })
+
   it('keeps large diagrams unchanged until Update and writes only the requested revision', async () => {
     const { result } = await openPane(large)
     await renderPending()

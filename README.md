@@ -100,8 +100,8 @@ common diagram snippets, automatic bracket and quote closing, standard editor
 keyboard shortcuts, and a link to the Mermaid syntax reference.
 The fixed-height header places Insert on the left and the settings gear and
 syntax-reference document-info icon on the right. Insert is hidden while editing
-an existing diagram without shifting the editor. Large diagrams show Update in
-the same space; it is disabled until valid, unsaved changes are ready.
+an existing diagram without shifting the editor. In Word on the web, large diagrams
+show Update in the same space; it is disabled until valid, unsaved changes are ready.
 The active line and its line number are highlighted. The editor's built-in
 search and replace panel and its shortcuts are disabled.
 In sequence diagrams, autocomplete also suggests participant and actor IDs from
@@ -109,9 +109,10 @@ declarations and existing messages, with declared aliases shown as descriptions.
 Suggestions are available for message senders and recipients, note references,
 and activation commands; use Ctrl+Space to request suggestions explicitly.
 
-The editor UI always uses a light appearance, regardless of
-Word's or the system's theme. The selected Mermaid theme independently controls
-the diagram's colors and exported PNG.
+The task pane, code editor, and settings window follow Word's light or dark
+appearance, with the system color preference as a fallback outside Office.
+The selected Mermaid theme independently controls the diagram's colors and
+exported PNG.
 The code editor always uses the platform's System UI font at 12 px.
 This changes only the editor display, not the diagram output.
 
@@ -157,20 +158,23 @@ Remove and upload the updated `manifest.xml` again to replace the old ribbon
 buttons; reopening a cached pane alone does not refresh Word's ribbon.
 Place the cursor on a blank line and press **Insert** once. For small diagrams,
 valid edits then update the PNG directly in Word after a short typing pause.
-For large diagrams, edits remain in the pane until **Update** is pressed.
+In Word on the web, edits to large diagrams remain in the pane until **Update**
+is pressed. Word on Windows and Mac keeps live updates enabled for large diagrams
+while the web host retains the workaround for its blocking image-import dialog.
 Validation still runs while typing; invalid source leaves the last valid image
 in place and disables Update. Settings **Apply** is also an explicit update,
 including any pending source edits.
 
-Manual updates are enabled at 50 nonblank source lines, 4,000 source characters,
-or rendered SVG dimensions exceeding 1,536 pixels on either side or 2 megapixels
-(2,097,152 pixels). These are conservative size heuristics, not an exact prediction
-of Word's image-import behavior. Once enabled, manual mode stays active for the
-current editing session, even if the diagram is shortened; selecting another
-diagram resets the mode and evaluates its size again. Edits made during an Update
-remain unsaved until the next click. Switching diagrams with unsaved changes still
-requires confirmation. This avoids repeated large-picture imports while typing;
-an explicit Update can still show Word's own loading dialog.
+On Word on the web and unknown hosts, manual updates are enabled at 50 nonblank
+source lines, 4,000 source characters, or rendered SVG dimensions exceeding
+1,536 pixels on either side or 2 megapixels (2,097,152 pixels). These are
+conservative size heuristics, not an exact prediction of Word's image-import
+behavior. Once enabled, manual mode stays active for the current editing session,
+even if the diagram is shortened; selecting another diagram resets the mode and
+evaluates its size again. Edits made during an Update remain unsaved until the
+next click. Switching diagrams with unsaved changes still requires confirmation.
+This avoids repeated large-picture imports while typing in Word on the web; an
+explicit Update can still show Word's own loading dialog.
 
 The pane automatically follows Word's selection. Select a Mermaid picture to
 load its source, or move to ordinary text or a blank line to start with the

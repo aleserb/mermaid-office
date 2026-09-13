@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { FluentProvider, MessageBar, MessageBarBody, Spinner, webLightTheme } from '@fluentui/react-components'
+import {
+  FluentProvider,
+  MessageBar,
+  MessageBarBody,
+  Spinner,
+  webDarkTheme,
+  webLightTheme,
+} from '@fluentui/react-components'
 import { DiagramSettingsDialog } from '../components/DiagramSettingsDialog'
+import { useOfficeDarkTheme } from '../preferences/officeTheme'
 import { parseSettingsMessage, type SettingsMessage, type SettingsSnapshot } from './messages'
 import './settingsWindow.css'
 
 export function SettingsWindow() {
+  const darkMode = useOfficeDarkTheme()
   const [snapshot, setSnapshot] = useState<SettingsSnapshot | null>(null)
   const [error, setError] = useState('')
   const [submitted, setSubmitted] = useState(false)
@@ -75,7 +84,11 @@ export function SettingsWindow() {
   }, [session])
 
   return (
-    <FluentProvider theme={webLightTheme} className="settings-window">
+    <FluentProvider
+      theme={darkMode ? webDarkTheme : webLightTheme}
+      className="settings-window office-theme"
+      style={{ colorScheme: darkMode ? 'dark' : 'light' }}
+    >
       {error ? <MessageBar intent="error"><MessageBarBody>{error}</MessageBarBody></MessageBar> : snapshot ? (
         <DiagramSettingsDialog
           theme={snapshot.theme}

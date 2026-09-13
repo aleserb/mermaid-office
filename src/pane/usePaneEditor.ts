@@ -7,7 +7,7 @@ import { getDiagramSettings, sameDiagramSettings, type DiagramSettings } from '.
 import { getPreferredSettings, getPreferredTheme, setPreferredSettings, setPreferredTheme } from '../preferences/diagramPreferences'
 import { insertDiagramWithPayload, updateDiagramById } from '../word/insertDiagram'
 import { getSelectedDiagram, watchSelectedDiagram, type DiagramSelectionWatcher } from '../word/selection'
-import { isLargeDiagram } from './updateMode'
+import { isLargeDiagram, requiresManualLargeDiagramUpdates } from './updateMode'
 
 export const LIVE_UPDATE_DELAY = 600
 
@@ -57,6 +57,7 @@ export function usePaneEditor() {
   const [updateRequested, setUpdateRequested] = useState<Draft | null>(null)
   const settingsPinned = useRef(false)
   const resumeAfterSettingsWrite = useRef(false)
+  const manualLargeDiagramUpdates = useRef(true)
   const mounted = useRef(false)
   const busy = useRef(false)
   const draftRef = useRef(draft)
@@ -81,7 +82,7 @@ export function usePaneEditor() {
     setWordError('')
     setFailedWrite(null)
     setPending(null)
-    setManualUpdates(isLargeDiagram(next.source))
+    setManualUpdates(manualLargeDiagramUpdates.current && isLargeDiagram(next.source))
     setUpdateRequested(null)
     setHistoryKey((key) => key + 1)
   }, [])
@@ -126,6 +127,9 @@ export function usePaneEditor() {
         if (!Office.context?.document) {
           throw new Error('Open Mermaid inside Microsoft Word to follow document selection.')
         }
+        manualLargeDiagramUpdates.current = requiresManualLargeDiagramUpdates(
+          Office.context.platform === undefined ? undefined : String(Office.context.platform),
+        )
         watcher.current = watchSelectedDiagram(
           (selected) => {
             if (!active) return
@@ -171,7 +175,9 @@ export function usePaneEditor() {
       try {
         const svg = await renderMermaid(draft.source, draft.theme, draft.settings)
         if (active) {
-          if (isLargeDiagram(draft.source, svg)) setManualUpdates(true)
+          if (manualLargeDiagramUpdates.current && isLargeDiagram(draft.source, svg)) {
+            setManualUpdates(true)
+          }
           setRendered({ draft, svg })
         }
       } catch (error) {
@@ -262,7 +268,9 @@ export function usePaneEditor() {
     setRendered(null)
     setDiagnostic(null)
     setUpdateRequested(null)
-    if (isLargeDiagram(next.source)) setManualUpdates(true)
+    if (manualLargeDiagramUpdates.current && isLargeDiagram(next.source)) {
+      setManualUpdates(true)
+    }
   }
 
   const changeSource = (source: string) => changeDraft({ ...draftRef.current, source })

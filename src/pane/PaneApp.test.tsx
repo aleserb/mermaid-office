@@ -95,6 +95,18 @@ it('shows a light code-only editor without a preview and does not insert automat
   expect(updateDiagramById).not.toHaveBeenCalled()
 })
 
+it('follows the dark Word theme in the pane and code editor', async () => {
+  vi.stubGlobal('Office', {
+    onReady: vi.fn().mockResolvedValue({}),
+    context: { document: {}, officeTheme: { isDarkTheme: true } },
+  })
+  const { container } = render(<PaneApp />)
+  await screen.findByRole('textbox', { name: 'Mermaid diagram source' })
+  expect(container.querySelector<HTMLElement>('.fui-FluentProvider')?.style.colorScheme).toBe('dark')
+  const editor = EditorView.findFromDOM(container.querySelector<HTMLElement>('.cm-editor')!)
+  expect(editor?.state.facet(EditorView.darkTheme)).toBe(true)
+})
+
 it('opens settings from the keyboard and discards edits on Escape and Cancel', async () => {
   vi.stubGlobal('Office', { onReady: vi.fn().mockResolvedValue({}), context: { document: {} } })
   // Let Tabster's delayed visibility checks run rather than racing past them.
